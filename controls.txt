@@ -1,0 +1,70 @@
+COS344 HA — Mini Golf Course Controls
+======================================
+Student: u14439141   Team: Ray Tracers
+
+CAMERA
+------
+W / S               Move camera forward / backward
+A / D               Strafe camera left / right
+Q / E               Move camera down / up
+Right-click drag    Look around (mouse look)
+Scroll wheel        Zoom in / out (changes FOV)
+= / -               Zoom in / out (keyboard zoom, same as scroll)
+O                   Toggle Orthographic / Perspective projection
+R                   Reset camera + zoom to default overview
+
+GAMEPLAY
+--------
+Space               Spawn ball at current hole tee
+G                   Enter / exit AIM MODE (only when ball is at rest)
+
+  AIM MODE:
+    Left-click drag     Draw power line — drag backward from aim direction
+                        (direction = opposite of drag, power = drag length)
+    Release LMB         Fire the ball
+
+[ / ]               Previous / next hole (for scouting)
+
+TIME OF DAY
+-----------
+Numpad +            Advance time of day (faster cycling to night/dawn/dusk)
+Numpad -            Reverse time of day
+T                   Toggle auto time-passage on / off
+                      Lamp posts activate automatically at night
+                      (timeOfDay < 0.28 or > 0.72)
+
+QUIT
+----
+Escape              Quit
+
+HOLE OVERVIEW
+-------------
+Hole  1 — Straight Starter   (par 3)   single straight fairway + bridge
+Hole  2 — Figure-8 Path      (par 3)   figure-8 bends + triangle deflectors
+Hole  3 — Gentle Curve       (par 4)   two-segment diagonal curve + sand
+Hole  4 — Tunnel Hole        (par 3)   straight with overhead wood tunnel
+Hole  5 — S-Bend             (par 3)   three alternating segments + palm island
+Hole  6 — Split Path         (par 4)   jog fairway + sand bunkers
+Hole  7 — Windmill           (par 4)   long straight beside spinning windmill
+Hole  8 — Elevated Bridge    (par 3)   bridge over water hazard
+Hole  9 — U-Shape            (par 3)   U-turn fairway with corner bumpers
+Hole 10 — Spiral Path        (par 3)   four-segment spiral + inner rock
+Hole 11 — Raised Tee         (par 4)   tee box + ramp + tunnel
+Hole 12 — River Crossing     (par 4)   narrow bridge over wide water hazard
+Hole 13 — Zig-Zag Lane       (par 3)   four-segment zig-zag + side barriers
+Hole 14 — Bowl Hole          (par 4)   curved approach into wide bowl
+Hole 15 — Double Curve       (par 3)   two-curve fairway (decorative trees nearby)
+Hole 16 — Narrow Corridor    (par 3)   very narrow fairway + column obstacles
+Hole 17 — Island Green       (par 3)   fairway over water to island cup
+Hole 18 — Final Challenge    (par 5)   four-segment zig-zag + bridge + sand
+
+NOTES
+-----
+- Restaurant at the south end of the property (walk south from hole 18).
+- Red brick walkways connect each hole in sequence.
+- Property boundary is a lush tropical hedge (irregular polygon outline).
+- Palm trees (with drooping fronds) and boulders are scattered throughout.
+- The Prac-3-style windmill on hole 7 uses 4 blades × 3x3 lattice cells.
+- Scores are printed to the console when a hole is completed.
+- Three surface rows: Row 1 (holes 1-6) north band, Row 2 (7-12) middle,
+  Row 3 (13-18) south band, Restaurant beyond row 3.
