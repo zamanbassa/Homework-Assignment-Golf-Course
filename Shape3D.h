@@ -1,12 +1,14 @@
 #ifndef SHAPE3D_H
 #define SHAPE3D_H
 
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+
 #include <iostream>
 #include <iomanip>
 #include <cmath>
 #include <vector>
-#include "Vector.h"
-#include "Matrix.h"
 
 using namespace std;
 
@@ -19,11 +21,11 @@ protected:
     vector<float> colours;
     vector<float> texture_coords;
 
-    Vector<4> colour;
+    glm::vec4 colour;
 
 public:
     Shape3D();
-    Shape3D(Vector<4> colour);
+    Shape3D(glm::vec4 colour);
     vector<float> getVertices() const;
     vector<unsigned int> getIndices() const;
     vector<float> getColours() const;
@@ -33,7 +35,7 @@ public:
     void setNormals(vector<float> normals);
     void setIndices(vector<unsigned int> indices);
     void setTextureCoords(vector<float> texture);
-    void setColour(Vector<4> colour);
+    void setColour(glm::vec4 colour);
 };
 
 #endif

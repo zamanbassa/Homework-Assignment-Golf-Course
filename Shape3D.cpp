@@ -2,7 +2,7 @@
 
 Shape3D::Shape3D() {}
 
-Shape3D::Shape3D(Vector<4> colour) {}
+Shape3D::Shape3D(glm::vec4 colour) {}
 
 vector<float> Shape3D::getVertices() const {}
 
@@ -22,4 +22,4 @@ void Shape3D::setIndices(vector<unsigned int> indices) {}
 
 void Shape3D::setTextureCoords(vector<float> texture) {}
 
-void Shape3D::setColour(Vector<4> colour) {}
+void Shape3D::setColour(glm::vec4 colour) {}
