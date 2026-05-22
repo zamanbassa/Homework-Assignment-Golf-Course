@@ -47,19 +47,30 @@ struct Vertex { vec3 pos, norm; vec2 uv; };
 struct Mesh   { GLuint vao, vbo, ebo; int count; };
 
 static Mesh upload(const vector<Vertex>& V, const vector<unsigned>& I){
+    //create empty mesh
     Mesh m; m.count=(int)I.size();
+
+    //create vao and buffers 
     glGenVertexArrays(1,&m.vao); glGenBuffers(1,&m.vbo); glGenBuffers(1,&m.ebo);
     glBindVertexArray(m.vao);
+
+    //bind vbo
     glBindBuffer(GL_ARRAY_BUFFER,m.vbo);
     glBufferData(GL_ARRAY_BUFFER,V.size()*sizeof(Vertex),V.data(),GL_STATIC_DRAW);
+
+    //bind ebo
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,m.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,I.size()*sizeof(unsigned),I.data(),GL_STATIC_DRAW);
+
+    //attributes for shaders
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)offsetof(Vertex,pos));  glEnableVertexAttribArray(0);
     glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)offsetof(Vertex,norm)); glEnableVertexAttribArray(1);
     glVertexAttribPointer(2,2,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)offsetof(Vertex,uv));   glEnableVertexAttribArray(2);
     glBindVertexArray(0);
     return m;
 }
+
+//clear memory when done
 static void freeMesh(Mesh& m){
     glDeleteBuffers(1,&m.vbo); glDeleteBuffers(1,&m.ebo);
     glDeleteVertexArrays(1,&m.vao);
@@ -141,21 +152,22 @@ static Mesh makeTriFloor(vec3 a, vec3 b, vec3 c){
     return upload(V,{0,1,2});
 }
 
+
 // Horizontal quad in XZ plane, facing up, UV 0-1
 static Mesh makeQuad(){
     vector<Vertex> V={
-        {{-0.5f,0,-0.5f},{0,1,0},{0,0}},
+        {{-0.5f,0,-0.5f},{0,1,0},{0,0}},    // vertex,normal,texture
         {{ 0.5f,0,-0.5f},{0,1,0},{1,0}},
         {{ 0.5f,0, 0.5f},{0,1,0},{1,1}},
         {{-0.5f,0, 0.5f},{0,1,0},{0,1}},
     };
-    return upload(V,{0,1,2,0,2,3});
+    return upload(V,{0,1,2,0,2,3}); // v and indices to draw
 }
 
 // Unit box [-0.5,0.5]^3
 static Mesh makeBox(){
     vector<Vertex> V; vector<unsigned> I;
-    struct F{ vec3 n,u,v,o; };
+    struct F{ vec3 n,u,v,o; };  // faces : normal, right, up ,origin
     F fs[6]={
         {{0,0,1},{1,0,0},{0,1,0},{-0.5f,-0.5f,0.5f}},
         {{0,0,-1},{-1,0,0},{0,1,0},{0.5f,-0.5f,-0.5f}},
