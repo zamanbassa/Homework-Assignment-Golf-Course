@@ -156,6 +156,18 @@ static Mesh makeQuad(){
     return upload(V,{0,1,2,0,2,3});
 }
 
+// Vertical quad in XY plane, centred, 1×1
+// UVs: v=0 at top, v=1 at bottom (OpenGL origin = bottom-left, stb_image origin = top-left)
+static Mesh makeVQuad(){
+    vector<Vertex> V={
+        {{-0.5f,-0.5f,0},{0,0,1},{0,1}},
+        {{ 0.5f,-0.5f,0},{0,0,1},{1,1}},
+        {{ 0.5f, 0.5f,0},{0,0,1},{1,0}},
+        {{-0.5f, 0.5f,0},{0,0,1},{0,0}},
+    };
+    return upload(V,{0,1,2,0,2,3});
+}
+
 // Unit box [-0.5,0.5]^3
 static Mesh makeBox(){
     vector<Vertex> V; vector<unsigned> I;
@@ -291,6 +303,17 @@ static Mesh      mH5Floor;
 static Mesh      mH7FloorArc1, mH7FloorArc2;
 static Mesh      mH7WallA1In, mH7WallA1Out, mH7WallA2In, mH7WallA2Out;
 static Mesh      mH8Floor;
+static Mesh      mTerrainHills;
+static Mesh      mVQuad;        // vertical quad for billboards
+static Mesh      mRockyBoulder; // low-poly displaced sphere
+
+// ─── Texture handles ──────────────────────────────────────────────────────────
+static GLuint texRock[8];       // rocks/rock1-8.bmp
+static GLuint texBark;          // rocks/wood4.bmp  (palm trunk bark)
+static GLuint texPalmCrown[3];  // tropical/t_palm_shrubN/palmsN.png  (leaf crown)
+static GLuint texWeed[3];       // tropical/t_trop_weedN/tropwN.png
+static GLuint texShrub[2];      // tropical/t_trop_shrubN/tropsN.png
+static GLuint texConcrete;      // rocks/floor1.bmp (concrete slabs)
 static GLFWwindow* gWin = nullptr;
 static float     timeOfDay = 0.45f;
 static float     todSpeed  = 0.005f;
@@ -315,13 +338,44 @@ static vec3 LAMP_POSITIONS[] = {
     {  4.f,  0.f, -50.f},   // H7 cup area
     { 10.f,  0.f, -48.f},   // between H7 and H8
     { 22.f,  0.f, -49.f},   // H8 cup area
-    // Restaurant area (corner lamps)
-    { -5.f,  0.f,   4.5f},
-    {  5.f,  0.f,   4.5f},
-    { -5.f,  0.f,  -3.5f},
-    {  5.f,  0.f,  -3.5f},
+    // Restaurant area (corner lamps — outside walls of enlarged 10×8 building)
+    { -6.f,  0.f,   5.f},
+    {  6.f,  0.f,   5.f},
+    { -6.f,  0.f,  -5.f},
+    {  6.f,  0.f,  -5.f},
 };
 static const int LAMP_COUNT = (int)(sizeof(LAMP_POSITIONS)/sizeof(LAMP_POSITIONS[0]));
+
+// ─── Hill terrain (upper-right corner, x=33..49, z=38..52) ──────────────────
+struct TerHill { float x, z, h, sig; };
+static const TerHill TERHILLS[] = {
+    {38.f, 43.f, 2.5f, 4.0f},
+    {45.f, 41.f, 2.0f, 3.5f},
+    {36.f, 48.f, 2.3f, 3.8f},
+    {47.f, 48.f, 1.7f, 3.0f},
+    {42.f, 50.f, 1.9f, 3.5f},
+};
+static const int TERHILL_N = (int)(sizeof(TERHILLS)/sizeof(TERHILLS[0]));
+static float terrainH(float x, float z){
+    float h = 0;
+    for(int i = 0; i < TERHILL_N; i++){
+        float dx = x - TERHILLS[i].x, dz = z - TERHILLS[i].z;
+        h += TERHILLS[i].h * expf(-(dx*dx + dz*dz)/(2.f*TERHILLS[i].sig*TERHILLS[i].sig));
+    }
+    return h;
+}
+// Returns the actual rendered (edge-faded) terrain height — use this for boulders near the mesh boundary
+static float hillH(float x, float z){
+    const float x0=33.f, z0=38.f, w=16.f, d=14.f;
+    float r=0.14f;
+    auto fade1 = [&](float t) -> float {
+        float f = (t < r) ? t/r : (t > 1.f-r) ? (1.f-t)/r : 1.f;
+        return f*f*(3.f-2.f*f);
+    };
+    float px = glm::clamp((x-x0)/w, 0.f, 1.f);
+    float pz = glm::clamp((z-z0)/d, 0.f, 1.f);
+    return terrainH(x,z) * fade1(px) * fade1(pz);
+}
 
 // ─── Drone state ──────────────────────────────────────────────────────────────
 struct Drone {
@@ -722,6 +776,139 @@ static void drawLampPost(vec3 pos, const mat4& vp){
     }
 }
 
+// ─── Rocky boulder mesh (low-poly sphere with hash displacement) ──────────────
+static float boulderHash(float x, float y, float z){
+    float v = sinf(x*127.1f + y*311.7f + z*74.3f) * 43758.5453f;
+    return v - floorf(v);
+}
+static Mesh makeRockyBoulder(){
+    const int st=9, sl=14;
+    const float rough=0.20f;
+    vector<Vertex> V; vector<unsigned> I;
+    for(int i=0; i<=st; i++){
+        float phi=PI*i/st;
+        for(int j=0; j<=sl; j++){
+            float th=2*PI*j/sl;
+            vec3 base={sinf(phi)*cosf(th), cosf(phi), sinf(phi)*sinf(th)};
+            float n=boulderHash(base.x, base.y, base.z);
+            float disp=1.0f + rough*(n*2.0f-1.0f);
+            vec3 p=base*disp;
+            V.push_back({p, base, {(float)j/sl, (float)i/st}});
+        }
+    }
+    for(int i=0; i<st; i++)
+        for(int j=0; j<sl; j++){
+            unsigned a=i*(sl+1)+j, b=a+1, c=(i+1)*(sl+1)+j, d=c+1;
+            I.insert(I.end(),{a,c,b,b,c,d});
+        }
+    return upload(V, I);
+}
+
+// ─── Hill terrain mesh builder ───────────────────────────────────────────────
+// Heights fade smoothly to 0 at the mesh boundary so it blends with flat ground
+static float edgeFade(float t){
+    // t = 0..1 normalised; returns 0 at edges, 1 in the interior
+    float r = 0.14f;  // fade zone: outer 14% per edge (≈2.2 units on a 16-unit mesh)
+    float f = (t < r) ? t/r : (t > 1.f-r) ? (1.f-t)/r : 1.f;
+    return f*f*(3.f - 2.f*f);  // smoothstep
+}
+static Mesh makeHillTerrain(float x0, float z0, float w, float d, int nx, int nz){
+    vector<Vertex> V; vector<unsigned> I;
+    float ddx = w/nx, ddz = d/nz, eps = 0.4f;
+    for(int iz = 0; iz <= nz; iz++){
+        for(int ix = 0; ix <= nx; ix++){
+            float x = x0 + ix*ddx, z = z0 + iz*ddz;
+            float fade = edgeFade((float)ix/nx) * edgeFade((float)iz/nz);
+            float raw  = terrainH(x, z);
+            float y    = raw * fade;          // exactly 0 at borders → no seam
+
+            // Finite-difference normal from the faded height field
+            auto fh = [&](float fx, float fz) -> float {
+                float px = (fx-x0)/w, pz = (fz-z0)/d;
+                return terrainH(fx,fz) * edgeFade(glm::clamp(px,0.f,1.f))
+                                       * edgeFade(glm::clamp(pz,0.f,1.f));
+            };
+            float hxp = fh(x+eps,z), hxn = fh(x-eps,z);
+            float hzp = fh(x,z+eps), hzn = fh(x,z-eps);
+            vec3 norm = glm::normalize(vec3(-(hxp-hxn)/(2*eps), 1.f, -(hzp-hzn)/(2*eps)));
+            V.push_back({{x,y,z}, norm, {(float)ix/nx, (float)iz/nz}});
+        }
+    }
+    for(int iz = 0; iz < nz; iz++)
+        for(int ix = 0; ix < nx; ix++){
+            unsigned a = iz*(nx+1)+ix;
+            I.insert(I.end(),{a, a+(unsigned)(nx+1), a+1,
+                               a+1, a+(unsigned)(nx+1), a+(unsigned)(nx+1)+1});
+        }
+    return upload(V, I);
+}
+
+// Draw with texture bound (resets uUseTex=0 after use)
+static void drawWithTex(const Mesh& mesh, const mat4& model, const mat4& vp, int surf, GLuint tex){
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glUniform1i(glGetUniformLocation(gProg,"uTex"),    0);
+    glUniform1i(glGetUniformLocation(gProg,"uUseTex"), 1);
+    draw(mesh, model, vp, surf);
+    glUniform1i(glGetUniformLocation(gProg,"uUseTex"), 0);
+}
+
+// Textured rugged boulder
+static void drawBoulder(vec3 pos, float r, GLuint tex, const mat4& vp){
+    mat4 m = glm::translate(mat4(1), pos);
+    m = glm::scale(m, {r, r*0.70f, r*0.85f});
+    drawWithTex(mRockyBoulder, m, vp, 10, tex);
+}
+
+// Palm tree: textured cylinder trunk segments + crossed-billboard leaf crown
+static void drawPalmTree(vec3 base, float height, GLuint barkTex, GLuint crownTex, const mat4& vp){
+    const int nSeg = 4;
+    float segH = height / nSeg;
+    vec3 cur = base;
+    float lean = height * 0.018f;  // slight lean per segment along +X
+    for(int s = 0; s < nSeg; s++){
+        float r = (0.18f - s*0.028f);  // taper: 0.18 at base → 0.10 at top
+        mat4 m = glm::translate(mat4(1), cur + vec3(0, segH*0.5f, 0));
+        m = glm::scale(m, {r*2.f, segH, r*2.f});
+        drawWithTex(mCylinder, m, vp, 11, barkTex);
+        cur += vec3(lean, segH, 0.f);
+    }
+    // Crown: 3 crossed vertical quads at 0°, 60°, 120° — visible from every angle
+    vec3 crown = cur;
+    float cw = height * 0.60f, ch = height * 0.50f;
+    for(int k = 0; k < 3; k++){
+        float ang = (float)k * (PI / 3.0f);
+        mat4 m = glm::translate(mat4(1), crown + vec3(0, ch*0.35f, 0));
+        m = glm::rotate(m, ang, {0,1,0});
+        m = glm::scale(m, {cw, ch, 1.f});
+        drawWithTex(mVQuad, m, vp, 12, crownTex);
+    }
+}
+
+// Camera-facing cylindrical billboard (plant/tree sprite)
+static void drawBillboard(vec3 base, float w, float h, GLuint tex, const mat4& vp){
+    vec3 toCam = cam.pos - base;
+    toCam.y = 0.f;
+    float ang = atan2f(toCam.x, toCam.z);
+    mat4 m = glm::translate(mat4(1), base + vec3(0, h*0.5f, 0));
+    m = glm::rotate(m, ang, {0,1,0});
+    m = glm::scale(m, {w, h, 1.f});
+    drawWithTex(mVQuad, m, vp, 12, tex);
+}
+
+static void drawWalkway(vec3 a, vec3 b, float w, const mat4& vp){
+    vec3 diff = b - a;
+    float len = glm::length(diff);
+    if(len < 0.01f) return;
+    vec3 dir = diff / len;
+    float ang = atan2f(dir.x, dir.z);
+    vec3 mid = (a + b) * 0.5f;
+    mat4 m = glm::translate(mat4(1), mid + vec3(0, 0.005f, 0));
+    m = glm::rotate(m, ang, {0, 1, 0});
+    m = glm::scale(m, {w, 1.f, len});
+    draw(mQuad, m, vp, 3);
+}
+
 // ─── Callbacks ───────────────────────────────────────────────────────────────
 static void cbScroll(GLFWwindow*, double, double dy){
     cam.fov = glm::clamp(cam.fov - (float)dy*2.5f, 10.f, 95.f);
@@ -845,6 +1032,8 @@ static void setUniforms(float t, const mat4& vp){
     glUniform1f(glGetUniformLocation(gProg,"uTime"),      t);
     glUniform1f(glGetUniformLocation(gProg,"uTimeOfDay"), timeOfDay);
     glUniform1f(glGetUniformLocation(gProg,"uAmbient"),   0.30f);
+    glUniform1i(glGetUniformLocation(gProg,"uUseTex"),    0);
+    glUniform1i(glGetUniformLocation(gProg,"uTex"),       0);
 
     float sun = timeOfDay*2*PI;
     vec3 sdir = glm::normalize(vec3(cosf(sun), sinf(sun)*0.9f+0.1f, -0.4f));
@@ -1120,9 +1309,41 @@ static void drawHole8(const mat4& vp){
       m=glm::rotate(m,PI*0.5f,{1,0,0}); m=glm::scale(m,{0.55f,1.0f,0.32f}); draw(mQuad,R*m,vp,17); }
 }
 
+// Rotation semantics: rot=0 → person faces +Z; rot=PI → faces -Z;
+//   rot=+PI/2 → faces +X (use for chair left of table); rot=-PI/2 → faces -X (right of table)
+static void drawChair(vec3 pos, float rot, const mat4& vp){
+    mat4 base = glm::translate(mat4(1), pos);
+    base = glm::rotate(base, rot, {0.f, 1.f, 0.f});
+    // 4 legs: mCylinder y=0..1, scaled to 0.65 → ground to seat bottom
+    const float lx[4]={-0.18f, 0.18f,-0.18f, 0.18f};
+    const float lz[4]={-0.16f,-0.16f, 0.16f, 0.16f};
+    for(int i=0;i<4;i++){
+        mat4 m = glm::translate(base, {lx[i], 0.f, lz[i]});
+        m = glm::scale(m, {0.05f, 0.65f, 0.05f});
+        draw(mCylinder, m, vp, 13);
+    }
+    // Seat: box centred at y=0.68 (top of legs + half thickness)
+    { mat4 m = glm::translate(base, {0, 0.68f, 0}); m = glm::scale(m, {0.48f, 0.06f, 0.44f}); draw(mBox, m, vp, 6); }
+    // Backrest: centred at y=1.00, offset behind seat (local -z)
+    { mat4 m = glm::translate(base, {0, 1.00f, -0.19f}); m = glm::scale(m, {0.48f, 0.60f, 0.06f}); draw(mBox, m, vp, 6); }
+}
+
+static void drawTable(vec3 pos, const mat4& vp){
+    // 4 legs: mCylinder y=0..1, scaled to 1.15
+    const float lx[4]={-0.50f, 0.50f,-0.50f, 0.50f};
+    const float lz[4]={-0.38f,-0.38f, 0.38f, 0.38f};
+    for(int i=0;i<4;i++){
+        mat4 m = glm::translate(mat4(1), pos + vec3(lx[i], 0.f, lz[i]));
+        m = glm::scale(m, {0.06f, 1.15f, 0.06f});
+        draw(mCylinder, m, vp, 13);
+    }
+    // Tabletop: box centred at y=1.18 (top of legs + half thickness)
+    { mat4 m = glm::translate(mat4(1), pos + vec3(0, 1.18f, 0)); m = glm::scale(m, {1.2f, 0.06f, 0.90f}); draw(mBox, m, vp, 6); }
+}
+
 static void drawRestaurant(const mat4& vp){
     float cx = 0.f, cz = 0.f;
-    float bw = 7.f, bd = 5.5f, bh = 3.2f;
+    float bw = 10.f, bd = 8.f, bh = 3.5f;
     { mat4 m = glm::translate(mat4(1),{cx,0.01f,cz}); m = glm::scale(m,{bw,1,bd}); draw(mQuad,m,vp,9); }
     {mat4 m=glm::translate(mat4(1),{cx,bh*.5f,cz-bd*.5f}); m=glm::scale(m,{bw,.0f+bh,.28f}); draw(mBox,m,vp,8);}
     {mat4 m=glm::translate(mat4(1),{cx,bh*.5f,cz+bd*.5f}); m=glm::scale(m,{bw,bh,.28f}); draw(mBox,m,vp,8);}
@@ -1209,6 +1430,35 @@ int main(){
     }
     mH8Floor = makeTriFloor({0,0,-H8_HW},{0,0,H8_HW},{H8_LEN,0,0});
     mSkybox  = makeSkyboxMesh();
+    mVQuad        = makeVQuad();
+    mRockyBoulder = makeRockyBoulder();
+    mTerrainHills = makeHillTerrain(33.f, 38.f, 16.f, 14.f, 32, 28);
+
+    // ── Load textures ──────────────────────────────────────────────────────────
+    for(int i=0; i<8; i++){
+        char buf[128];
+        snprintf(buf,sizeof(buf),"textures/rocks/rock%d.bmp",i+1);
+        texRock[i] = loadTexture(buf);
+    }
+    texBark = loadTexture("textures/rocks/wood4.bmp");
+    const char* crownPaths[3]={
+        "textures/tropical/t_palm_shrub1/palms1.png",
+        "textures/tropical/t_palm_shrub2/palms2.png",
+        "textures/tropical/t_palm_shrub3/palms3.png",
+    };
+    for(int i=0; i<3; i++) texPalmCrown[i] = loadTexture(crownPaths[i]);
+    const char* weedPaths[3]={
+        "textures/tropical/t_trop_weed1/tropw1.png",
+        "textures/tropical/t_trop_weed6/tropw6.png",
+        "textures/tropical/t_trop_weed7/tropw7.png",
+    };
+    for(int i=0; i<3; i++) texWeed[i] = loadTexture(weedPaths[i]);
+    const char* shrubPaths[2]={
+        "textures/tropical/t_trop_shrub1/trops1.png",
+        "textures/tropical/t_trop_shrub2/trops2.png",
+    };
+    for(int i=0; i<2; i++) texShrub[i] = loadTexture(shrubPaths[i]);
+    texConcrete = loadTexture("textures/rocks/floor1.bmp");
 
     double prev = glfwGetTime();
 
@@ -1345,9 +1595,109 @@ int main(){
 
         drawRestaurant(vp);
 
+        // Concrete slabs surrounding restaurant (bw=10, bd=8 → walls at x=±5, z=±4)
+        // Front slab: z=4..8 (depth 4) to fully contain front seating
+        { mat4 m=glm::translate(mat4(1),{0.f,0.005f, 6.f}); m=glm::scale(m,{16.f,1.f,4.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
+        // Back slab: z=-4..-7
+        { mat4 m=glm::translate(mat4(1),{0.f,0.005f,-5.5f}); m=glm::scale(m,{16.f,1.f,3.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
+        // Left slab: x=-5..-8
+        { mat4 m=glm::translate(mat4(1),{-6.5f,0.005f,0.f}); m=glm::scale(m,{3.f,1.f, 8.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
+        // Right slab: x=5..9 (width 4 to contain right seating)
+        { mat4 m=glm::translate(mat4(1),{ 7.f,  0.005f,0.f}); m=glm::scale(m,{4.f,1.f, 8.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
+
+        // ── Seating area ────────────────────────────────────────────────────────
+        // Front patio: 2 tables at z=6.0 (centred on front slab z=4..8)
+        // Chair rot: left of table → +PI/2 (face +X), right → -PI/2 (face -X),
+        //            front (z-) → 0 (face +Z), back (z+) → PI (face -Z)
+        drawTable({-3.5f, 0.f, 6.0f}, vp);
+        drawChair({-4.5f, 0.f, 6.0f},  1.57f, vp);   // left of table → face +X
+        drawChair({-2.5f, 0.f, 6.0f}, -1.57f, vp);   // right of table → face -X
+        drawChair({-3.5f, 0.f, 7.0f},  3.14f, vp);   // behind table → face -Z
+        drawChair({-3.5f, 0.f, 5.0f},  0.0f,  vp);   // in front → face +Z
+
+        drawTable({ 3.5f, 0.f, 6.0f}, vp);
+        drawChair({ 2.5f, 0.f, 6.0f},  1.57f, vp);
+        drawChair({ 4.5f, 0.f, 6.0f}, -1.57f, vp);
+        drawChair({ 3.5f, 0.f, 7.0f},  3.14f, vp);
+        drawChair({ 3.5f, 0.f, 5.0f},  0.0f,  vp);
+
+        // Right-side patio: 1 table at (7.5, 0, 1.5) — on right slab x=5..9
+        drawTable({7.5f, 0.f, 1.5f}, vp);
+        drawChair({6.5f, 0.f, 1.5f},  1.57f, vp);
+        drawChair({8.5f, 0.f, 1.5f}, -1.57f, vp);
+        drawChair({7.5f, 0.f, 2.5f},  3.14f, vp);
+        drawChair({7.5f, 0.f, 0.5f},  0.0f,  vp);
+
+        // ── Corner gardens: dirt patch + small boulder + plant(s) ──────────────
+        // Front-left corner of front slab
+        { mat4 m=glm::translate(mat4(1),{-6.5f,0.02f, 7.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
+        drawBoulder({-6.5f, 0.4f*0.35f, 7.5f}, 0.40f, texRock[2], vp);
+        drawBillboard({-6.8f, 0.f, 7.2f}, 0.65f, 1.0f, texWeed[0], vp);
+        drawBillboard({-6.2f, 0.f, 7.8f}, 0.55f, 0.85f, texWeed[1], vp);
+
+        // Front-right corner of front slab
+        { mat4 m=glm::translate(mat4(1),{ 6.5f,0.02f, 7.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
+        drawBoulder({ 6.5f, 0.35f*0.35f, 7.5f}, 0.35f, texRock[3], vp);
+        drawBillboard({ 6.2f, 0.f, 7.2f}, 0.60f, 0.90f, texWeed[0], vp);
+
+        // Right-slab front corner
+        { mat4 m=glm::translate(mat4(1),{ 8.5f,0.02f, 3.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
+        drawBoulder({ 8.5f, 0.45f*0.35f, 3.5f}, 0.45f, texRock[4], vp);
+        drawBillboard({ 8.8f, 0.f, 3.2f}, 0.60f, 0.95f, texWeed[1], vp);
+        drawBillboard({ 8.2f, 0.f, 3.8f}, 0.50f, 0.80f, texWeed[0], vp);
+
+        // Right-slab back corner
+        { mat4 m=glm::translate(mat4(1),{ 8.5f,0.02f,-3.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
+        drawBoulder({ 8.5f, 0.38f*0.35f,-3.5f}, 0.38f, texRock[5], vp);
+        drawBillboard({ 8.8f, 0.f,-3.8f}, 0.55f, 0.85f, texWeed[1], vp);
+
         // Lamp posts
         for(int i = 0; i < LAMP_COUNT; i++)
             drawLampPost(LAMP_POSITIONS[i], vp);
+
+        // Hill terrain — upper-right corner (smoothly blends into flat ground)
+        draw(mTerrainHills, mat4(1), vp, 2);
+
+        // Boulders — partially embedded (center at terrainH + r*0.35, sinking ~50% in)
+        drawBoulder({38.f, terrainH(38.f,43.f)+3.2f*0.35f, 43.f}, 3.2f, texRock[0], vp);
+        drawBoulder({45.f, terrainH(45.f,41.f)+3.8f*0.35f, 41.f}, 3.8f, texRock[1], vp);
+        drawBoulder({36.f, terrainH(36.f,48.f)+2.8f*0.35f, 48.f}, 2.8f, texRock[2], vp);
+        drawBoulder({47.f, terrainH(47.f,47.f)+2.2f*0.35f, 47.f}, 2.2f, texRock[3], vp);
+        drawBoulder({41.f, terrainH(41.f,46.f)+1.9f*0.35f, 46.f}, 1.9f, texRock[4], vp);
+        drawBoulder({46.f, terrainH(46.f,44.f)+1.6f*0.35f, 44.f}, 1.6f, texRock[5], vp);
+        // Base boulders — nestled at the foot of the hill (use hillH for edge-faded surface height)
+        drawBoulder({36.f, hillH(36.f,39.5f)+2.2f*0.35f, 39.5f}, 2.2f, texRock[6], vp);
+        drawBoulder({43.f, hillH(43.f,39.5f)+1.8f*0.35f, 39.5f}, 1.8f, texRock[7], vp);
+
+        // Weeds right next to each boulder
+        drawBillboard({36.5f,terrainH(36.5f,44.f),   44.f},  1.6f, 2.0f, texWeed[0], vp);
+        drawBillboard({39.5f,terrainH(39.5f,42.f),   42.f},  1.4f, 1.7f, texWeed[1], vp);
+        drawBillboard({43.5f,terrainH(43.5f,40.5f),  40.5f}, 1.5f, 1.8f, texWeed[2], vp);
+        drawBillboard({46.5f,terrainH(46.5f,42.5f),  42.5f}, 1.3f, 1.6f, texWeed[0], vp);
+        drawBillboard({34.5f,terrainH(34.5f,47.5f),  47.5f}, 1.4f, 1.7f, texWeed[1], vp);
+        drawBillboard({40.f, terrainH(40.f, 45.5f),  45.5f}, 1.2f, 1.5f, texWeed[2], vp);
+        drawBillboard({46.5f,terrainH(46.5f,43.5f),  43.5f}, 1.3f, 1.6f, texWeed[0], vp);
+
+        // Palm trees — cylinder trunk with bark texture, crossed billboard crown
+        drawPalmTree({35.f, terrainH(35.f,42.f), 42.f}, 6.5f, texBark, texPalmCrown[0], vp);
+        drawPalmTree({43.f, terrainH(43.f,45.f), 45.f}, 7.5f, texBark, texPalmCrown[0], vp);
+        drawPalmTree({38.f, terrainH(38.f,50.f), 50.f}, 5.5f, texBark, texPalmCrown[0], vp);
+        drawPalmTree({47.f, terrainH(47.f,44.f), 44.f}, 5.0f, texBark, texPalmCrown[0], vp);
+
+        // Tropical shrubs
+        drawBillboard({44.f, terrainH(44.f,48.f), 48.f}, 2.5f, 3.0f, texShrub[0], vp);
+        drawBillboard({34.f, terrainH(34.f,46.f), 46.f}, 2.8f, 3.5f, texShrub[1], vp);
+
+        // Cement walkways between holes and to restaurant
+        drawWalkway({-33.f,0.f,29.f}, {-33.f,0.f,25.f}, 1.5f, vp);   // H1 → H2
+        drawWalkway({-33.f,0.f,11.f}, {-33.f,0.f, 6.f}, 1.5f, vp);   // H2 → H3
+        drawWalkway({-33.f,0.f,-8.f}, {-35.f,0.f,-13.f}, 1.2f, vp);  // H3 → H4
+        drawWalkway({-36.f,0.f,-22.f},{-33.f,0.f,-27.f}, 1.2f, vp);  // H4 → H5
+        drawWalkway({-33.f,0.f,-36.f},{-28.f,0.f,-41.f}, 1.5f, vp);  // H5 → H6
+        drawWalkway({-20.f,0.f,-47.f},{-12.f,0.f,-47.f}, 1.2f, vp);  // H6 → H7
+        drawWalkway({ 7.f, 0.f,-47.f},{ 14.f,0.f,-47.f}, 1.2f, vp);  // H7 → H8
+        drawWalkway({  5.0f,0.f, 0.f},{ 10.f,0.f,  0.f}, 1.5f, vp);  // restaurant east
+        drawWalkway({  0.f, 0.f,-4.0f},{  0.f,0.f,-7.0f},1.5f, vp);  // restaurant south
 
         // Golf ball
         if(ball.active){
@@ -1385,6 +1735,13 @@ int main(){
 
     freeMesh(mQuad); freeMesh(mBox); freeMesh(mSphere);
     freeMesh(mCylinder); freeMesh(mTorus); freeMesh(mTrap); freeMesh(mCircle);
+    freeMesh(mVQuad); freeMesh(mRockyBoulder); freeMesh(mTerrainHills);
+    glDeleteTextures(8, texRock);
+    glDeleteTextures(1, &texBark);
+    glDeleteTextures(3, texPalmCrown);
+    glDeleteTextures(3, texWeed);
+    glDeleteTextures(2, texShrub);
+    glDeleteTextures(1, &texConcrete);
     freeMesh(mH3Wall1); freeMesh(mH3Wall2);
     freeMesh(mH4Floor); freeMesh(mH4WallIn); freeMesh(mH4WallOut);
     freeMesh(mH5Floor);

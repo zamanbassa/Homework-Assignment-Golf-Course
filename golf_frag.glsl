@@ -26,7 +26,9 @@ in vec2 vUV;
 // 19 = cup/hole rim (black)
 // 20 = restaurant roof (terracotta)
 
-uniform int   uSurface;
+uniform int       uSurface;
+uniform sampler2D uTex;
+uniform int       uUseTex;  // 1 = sample uTex and override calcSurface colour
 uniform float uTime;
 uniform vec3  uLightDir;      // sun direction (world-space)
 uniform vec3  uLightColor;    // sun color
@@ -199,6 +201,13 @@ void main(){
     }
 
     vec3 col  = calcSurface();
+
+    // Texture override (rock BMP or plant PNG with alpha cutout)
+    if (uUseTex == 1){
+        vec4 t = texture(uTex, vUV);
+        if (t.a < 0.15) discard;
+        col = t.rgb;
+    }
 
     // Emissive — skip lighting
     if (uSurface == 14){

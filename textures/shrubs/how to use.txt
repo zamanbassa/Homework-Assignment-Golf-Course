@@ -1,0 +1,3 @@
+This pack contains a base model with several exchangeable textures.
+Feel free to assign any of the textures to the model. This can be done in your favotite 3d modeler.
+If you need a different texture format (dds,png...) you can convert the tga-texture files by using GIMP or any other image app that can handel alpha transparency and save the image file to your desired format.
