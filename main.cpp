@@ -3,10 +3,11 @@
    Student: u14439141  Team: Ray Tracers
 
    Controls:
-     WASD       fly camera
-     Q / E      camera down / up
+     WASD       fly drone (drone-view) / move observer (external-view)
+     Q / E      drone/camera down / up
      Scroll     zoom in / out
-     Right-drag smooth mouse look
+     Right-drag smooth mouse look (steers drone or observer)
+     F          toggle drone-cam / external-cam
      Space      spawn ball at tee
      G          toggle aim mode (ball must be still)
      LMB-drag   aim + power (in aim mode)
@@ -15,6 +16,7 @@
      R          reset camera
      KP+ / KP-  step time of day
      T          toggle auto time
+     Arrow keys tilt spotlight direction (night only)
      Escape     quit
    ============================================================ */
 
@@ -22,6 +24,9 @@
 #include <cstdlib>
 #include <cmath>
 #include <vector>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -265,8 +270,29 @@ Mesh makeTrapezoid(){
     return upload(V,{0,1,2,0,2,3});
 }
 
+static GLuint loadTexture(const char* path){
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    int w,h,n;
+    unsigned char* data = stbi_load(path, &w, &h, &n, 0);
+    if(data){
+        GLenum fmt = (n==4) ? GL_RGBA : GL_RGB;
+        glTexImage2D(GL_TEXTURE_2D,0,fmt,w,h,0,fmt,GL_UNSIGNED_BYTE,data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    } else {
+        printf("Failed to load texture: %s\n", path);
+    }
+    stbi_image_free(data);
+    return tex;
+}
+
 // ─── Globals ──────────────────────────────────────────────────────────────────
-static GLuint    gProg, skyProg;
+static GLuint    gProg, skyProg, skyTex;
 static Mesh      mQuad, mBox, mSphere, mCylinder, mTorus, mTrap, mSkybox, mCircle;
 static GLFWwindow* gWin = nullptr;
 static float     timeOfDay = 0.45f;
@@ -274,6 +300,42 @@ static float     todSpeed  = 0.002f;
 
 // Hole objects (indices 1-10; index 0 unused)
 static Hole* gHoles[11] = {};
+
+// ─── Lamp post positions (world XZ, y=0 base) ─────────────────────────────────
+static vec3 LAMP_POSITIONS[] = {
+    {-30.5f, 0.f,  31.f},   // H1 cup east
+    {-35.5f, 0.f,  31.f},   // H1 cup west
+    {-30.5f, 0.f,  42.f},   // H1 tee area
+    {-30.5f, 0.f,  24.f},   // between H1/H2
+    {-30.5f, 0.f,  13.f},   // H2 cup east
+    {-35.5f, 0.f,  13.f},   // H2 cup west
+    {-30.5f, 0.f,   4.f},   // between H2/H3
+    {-30.5f, 0.f,  -7.f},   // H3 cup area
+    {-35.5f, 0.f, -20.f},   // H4 cup area
+    {-30.5f, 0.f, -35.f},   // H5 cup area
+    {-35.5f, 0.f, -44.f},   // H6 tee/fairway
+    {-21.f,  0.f, -49.f},   // H6 cup area
+    {  4.f,  0.f, -50.f},   // H7 cup area
+    { 10.f,  0.f, -48.f},   // between H7/H8
+    { 22.f,  0.f, -49.f},   // H8 cup area
+    { -5.f,  0.f,   4.5f},  // restaurant corner
+    {  5.f,  0.f,   4.5f},
+    { -5.f,  0.f,  -3.5f},
+    {  5.f,  0.f,  -3.5f},
+};
+static const int LAMP_COUNT = (int)(sizeof(LAMP_POSITIONS)/sizeof(LAMP_POSITIONS[0]));
+
+// ─── Drone state ──────────────────────────────────────────────────────────────
+struct Drone {
+    vec3  pos   = {-33.f, 12.f, 20.f};
+    float yaw   = 0.f;
+    float pitch = -0.4f;
+} drone;
+
+static bool  droneView  = true;
+static float spotYawOff = 0.f;
+static float spotPitOff = 0.f;
+static float propAngle  = 0.f;
 
 // ─── Camera ──────────────────────────────────────────────────────────────────
 struct Camera {
@@ -415,11 +477,19 @@ static void cbMouseMove(GLFWwindow*, double x, double y){
     if(!rmbDown) return;
     if(skipFirst){ lastMX=x; lastMY=y; skipFirst=false; return; }
 
-    double dx = x-lastMX, dy = y-lastMY;
+    float dx = (float)(x - lastMX) * 0.003f;
+    float dy = (float)(y - lastMY) * 0.003f;
     lastMX=x; lastMY=y;
-    cam.yaw   += (float)dx * 0.0018f;
-    cam.pitch -= (float)dy * 0.0018f;
-    cam.pitch  = glm::clamp(cam.pitch, -1.4f, 1.4f);
+
+    if(droneView){
+        drone.yaw   += dx;
+        drone.pitch -= dy;
+        drone.pitch  = glm::clamp(drone.pitch, -1.4f, 1.4f);
+    } else {
+        cam.yaw   += dx;
+        cam.pitch -= dy;
+        cam.pitch  = glm::clamp(cam.pitch, -1.4f, 1.4f);
+    }
 }
 
 static void cbKey(GLFWwindow* w, int key, int, int act, int){
@@ -429,6 +499,20 @@ static void cbKey(GLFWwindow* w, int key, int, int act, int){
     case GLFW_KEY_O:      cam.ortho = !cam.ortho; break;
     case GLFW_KEY_R:
         cam.pos={-33,25,55}; cam.yaw=0; cam.pitch=-0.50f; cam.fov=60.f; break;
+
+    case GLFW_KEY_F:
+        droneView = !droneView;
+        if(droneView){
+            cam.pos   = drone.pos;
+            cam.yaw   = drone.yaw;
+            cam.pitch = drone.pitch;
+        } else {
+            cam.pos   = drone.pos + vec3(-sinf(drone.yaw)*8.f, 3.f, cosf(drone.yaw)*8.f);
+            cam.yaw   = drone.yaw;
+            cam.pitch = -0.25f;
+        }
+        break;
+
     case GLFW_KEY_G:
         if(ball.active && !ball.moving) aimMode = !aimMode; break;
     case GLFW_KEY_SPACE: {
@@ -450,6 +534,11 @@ static void cbKey(GLFWwindow* w, int key, int, int act, int){
         todSpeed = (todSpeed > 0) ? 0 : 0.002f; break;
     case GLFW_KEY_EQUAL:  cam.fov = glm::max(cam.fov-3.f, 10.f); break;
     case GLFW_KEY_MINUS:  cam.fov = glm::min(cam.fov+3.f, 95.f); break;
+
+    case GLFW_KEY_UP:    spotPitOff = glm::clamp(spotPitOff-0.1f,-1.4f, 0.f); break;
+    case GLFW_KEY_DOWN:  spotPitOff = glm::clamp(spotPitOff+0.1f,-1.4f, 0.f); break;
+    case GLFW_KEY_LEFT:  spotYawOff -= 0.15f; break;
+    case GLFW_KEY_RIGHT: spotYawOff += 0.15f; break;
     }
 }
 
@@ -471,8 +560,26 @@ static void setUniforms(float t, const mat4& vp){
     glUniform3fv(glGetUniformLocation(gProg,"uLightColor"),1,glm::value_ptr(scol));
     glUniform3fv(glGetUniformLocation(gProg,"uCamPos"),    1,glm::value_ptr(cam.pos));
 
-    glUniform1i(glGetUniformLocation(gProg,"uLampsOn"),   0);
-    glUniform1i(glGetUniformLocation(gProg,"uLampCount"), 0);
+    bool nightNow = (timeOfDay < 0.28f || timeOfDay > 0.72f);
+    glUniform1i(glGetUniformLocation(gProg,"uLampsOn"),   nightNow ? 1 : 0);
+    glUniform1i(glGetUniformLocation(gProg,"uLampCount"), LAMP_COUNT);
+    {
+        static vec3 lampWorldPos[32];
+        for(int i = 0; i < LAMP_COUNT; i++)
+            lampWorldPos[i] = LAMP_POSITIONS[i] + vec3(0, 3.8f, 0);
+        glUniform3fv(glGetUniformLocation(gProg,"uLampPos"), LAMP_COUNT, glm::value_ptr(lampWorldPos[0]));
+    }
+    vec3 lampCol = {1.0f, 0.92f, 0.65f};
+    glUniform3fv(glGetUniformLocation(gProg,"uLampColor"), 1, glm::value_ptr(lampCol));
+
+    int spotOn = nightNow ? 1 : 0;
+    float sy = drone.yaw + spotYawOff, sp = drone.pitch + spotPitOff - 0.3f;
+    vec3 spotDir = glm::normalize(vec3(sinf(sy)*cosf(sp), sinf(sp), -cosf(sy)*cosf(sp)));
+    glUniform1i(glGetUniformLocation(gProg,"uSpotOn"),     spotOn);
+    glUniform3fv(glGetUniformLocation(gProg,"uSpotPos"), 1, glm::value_ptr(drone.pos));
+    glUniform3fv(glGetUniformLocation(gProg,"uSpotDir"), 1, glm::value_ptr(spotDir));
+    glUniform1f(glGetUniformLocation(gProg,"uSpotCutoff"), cosf(glm::radians(18.f)));
+    glUniform1f(glGetUniformLocation(gProg,"uSpotOuter"),  cosf(glm::radians(26.f)));
 }
 
 // ─── Draw the restaurant ─────────────────────────────────────────────────────
@@ -486,6 +593,41 @@ static void drawRestaurant(const mat4& vp){
     {mat4 m=glm::translate(mat4(1),{cx-bw*.5f,bh*.5f,cz}); m=glm::scale(m,{.28f,bh,bd}); draw(mBox,m,vp,8);}
     {mat4 m=glm::translate(mat4(1),{cx+bw*.5f,bh*.5f,cz}); m=glm::scale(m,{.28f,bh,bd}); draw(mBox,m,vp,8);}
     { mat4 m=glm::translate(mat4(1),{cx,bh+.2f,cz}); m=glm::scale(m,{bw+.6f,.4f,bd+.6f}); draw(mBox,m,vp,20); }
+}
+
+// ─── Drone ────────────────────────────────────────────────────────────────────
+static void drawDrone(const mat4& vp){
+    vec3 p = drone.pos;
+    mat4 baseRot = glm::rotate(mat4(1), drone.yaw, {0,1,0});
+
+    { mat4 m = glm::translate(mat4(1), p) * baseRot; m = glm::scale(m, {1.4f, 0.28f, 0.9f}); draw(mBox, m, vp, 24); }
+    { mat4 m = glm::translate(mat4(1), p + vec3(0, 0.22f, 0)); m = glm::scale(m, {0.38f, 0.22f, 0.38f}); draw(mSphere, m, vp, 24); }
+
+    float armAngles[4] = {PI*0.25f, PI*0.75f, PI*1.25f, PI*1.75f};
+    for(int i = 0; i < 4; i++){
+        float aa = armAngles[i] + drone.yaw;
+        float ax = cosf(aa)*0.9f, az = sinf(aa)*0.9f;
+        vec3 tip = p + vec3(ax, 0, az);
+        { vec3 mid = p + vec3(ax*0.5f, 0, az*0.5f);
+          mat4 m = glm::translate(mat4(1), mid);
+          m = glm::rotate(m, aa, {0,1,0}); m = glm::scale(m, {0.12f, 0.08f, 0.9f});
+          draw(mBox, m, vp, 24); }
+        { mat4 m = glm::translate(mat4(1), tip); m = glm::scale(m, {0.12f, 0.12f, 0.12f}); draw(mSphere, m, vp, 24); }
+        for(int b = 0; b < 2; b++){
+            float ba = propAngle + b*PI + aa;
+            vec3 bpos = tip + vec3(cosf(ba)*0.32f, 0.10f, sinf(ba)*0.32f);
+            mat4 m = glm::translate(mat4(1), bpos);
+            m = glm::rotate(m, ba, {0,1,0}); m = glm::scale(m, {0.60f, 0.04f, 0.14f});
+            draw(mBox, m, vp, 25);
+        }
+    }
+}
+
+// ─── Lamp post ────────────────────────────────────────────────────────────────
+static void drawLampPost(vec3 pos, const mat4& vp){
+    { mat4 m = glm::translate(mat4(1), pos); m = glm::scale(m, {0.10f, 4.0f, 0.10f}); draw(mCylinder, m, vp, 13); }
+    { mat4 m = glm::translate(mat4(1), pos + vec3(0, 4.0f, 0)); m = glm::scale(m, {0.8f, 0.08f, 0.08f}); draw(mBox, m, vp, 13); }
+    { mat4 m = glm::translate(mat4(1), pos + vec3(0.4f, 4.0f, 0)); m = glm::scale(m, {0.25f, 0.25f, 0.25f}); draw(mSphere, m, vp, 14); }
 }
 
 // ─── Skybox ───────────────────────────────────────────────────────────────────
@@ -537,6 +679,7 @@ int main(){
 
     gProg   = LoadShaders("golf_vert.glsl","golf_frag.glsl");
     skyProg = LoadShaders("sky_vert.glsl", "sky_frag.glsl");
+    skyTex  = loadTexture("day_sky.png");
 
     mQuad     = makeQuad();
     mBox      = makeBox();
@@ -567,6 +710,7 @@ int main(){
         prev = now;
 
         timeOfDay = fmodf(timeOfDay + todSpeed*dt, 1.f);
+        propAngle = fmodf(propAngle + dt * 18.f, 2*PI);
 
         ball.update(dt);
 
@@ -607,16 +751,30 @@ int main(){
             }
         }
 
-        // Camera movement
+        // Camera / drone movement
         float spd = cam.spd * dt;
-        vec3 fw = cam.fwd();
-        vec3 rt = glm::normalize(glm::cross(fw,{0,1,0}));
-        if(glfwGetKey(gWin,GLFW_KEY_W)==GLFW_PRESS) cam.pos += fw*spd;
-        if(glfwGetKey(gWin,GLFW_KEY_S)==GLFW_PRESS) cam.pos -= fw*spd;
-        if(glfwGetKey(gWin,GLFW_KEY_A)==GLFW_PRESS) cam.pos -= rt*spd;
-        if(glfwGetKey(gWin,GLFW_KEY_D)==GLFW_PRESS) cam.pos += rt*spd;
-        if(glfwGetKey(gWin,GLFW_KEY_Q)==GLFW_PRESS) cam.pos.y -= spd;
-        if(glfwGetKey(gWin,GLFW_KEY_E)==GLFW_PRESS) cam.pos.y += spd;
+        if(droneView){
+            vec3 fw = {sinf(drone.yaw)*cosf(drone.pitch), sinf(drone.pitch), -cosf(drone.yaw)*cosf(drone.pitch)};
+            vec3 rt = glm::normalize(glm::cross(fw,{0,1,0}));
+            if(glfwGetKey(gWin,GLFW_KEY_W)==GLFW_PRESS) drone.pos += fw*spd;
+            if(glfwGetKey(gWin,GLFW_KEY_S)==GLFW_PRESS) drone.pos -= fw*spd;
+            if(glfwGetKey(gWin,GLFW_KEY_A)==GLFW_PRESS) drone.pos -= rt*spd;
+            if(glfwGetKey(gWin,GLFW_KEY_D)==GLFW_PRESS) drone.pos += rt*spd;
+            if(glfwGetKey(gWin,GLFW_KEY_Q)==GLFW_PRESS) drone.pos.y -= spd;
+            if(glfwGetKey(gWin,GLFW_KEY_E)==GLFW_PRESS) drone.pos.y += spd;
+            cam.pos   = drone.pos;
+            cam.yaw   = drone.yaw;
+            cam.pitch = drone.pitch;
+        } else {
+            vec3 fw = cam.fwd();
+            vec3 rt = glm::normalize(glm::cross(fw,{0,1,0}));
+            if(glfwGetKey(gWin,GLFW_KEY_W)==GLFW_PRESS) cam.pos += fw*spd;
+            if(glfwGetKey(gWin,GLFW_KEY_S)==GLFW_PRESS) cam.pos -= fw*spd;
+            if(glfwGetKey(gWin,GLFW_KEY_A)==GLFW_PRESS) cam.pos -= rt*spd;
+            if(glfwGetKey(gWin,GLFW_KEY_D)==GLFW_PRESS) cam.pos += rt*spd;
+            if(glfwGetKey(gWin,GLFW_KEY_Q)==GLFW_PRESS) cam.pos.y -= spd;
+            if(glfwGetKey(gWin,GLFW_KEY_E)==GLFW_PRESS) cam.pos.y += spd;
+        }
 
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
@@ -628,6 +786,9 @@ int main(){
         // Skybox
         glDepthFunc(GL_LEQUAL); glDepthMask(GL_FALSE);
         glUseProgram(skyProg);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, skyTex);
+        glUniform1i(glGetUniformLocation(skyProg,"skyTex"), 0);
         mat4 skyVP = proj*mat4(mat3(view));
         glUniformMatrix4fv(glGetUniformLocation(skyProg,"uVP"),1,GL_FALSE,glm::value_ptr(skyVP));
         glUniform1f(glGetUniformLocation(skyProg,"uTimeOfDay"),timeOfDay);
@@ -650,6 +811,13 @@ int main(){
 
         // Restaurant
         drawRestaurant(vp);
+
+        // Lamp posts
+        for(int i = 0; i < LAMP_COUNT; i++)
+            drawLampPost(LAMP_POSITIONS[i], vp);
+
+        // Drone (visible only in external-cam mode)
+        if(!droneView) drawDrone(vp);
 
         // Golf ball
         if(ball.active){
@@ -688,6 +856,7 @@ int main(){
     freeMesh(mCylinder); freeMesh(mTorus); freeMesh(mTrap); freeMesh(mCircle);
     glDeleteBuffers(1,&mSkybox.vbo);
     glDeleteVertexArrays(1,&mSkybox.vao);
+    glDeleteTextures(1, &skyTex);
     glDeleteProgram(gProg); glDeleteProgram(skyProg);
     glfwDestroyWindow(gWin);
     glfwTerminate();
