@@ -37,6 +37,9 @@ static const int   WIN_W = 1280, WIN_H = 800;
 struct Vertex { vec3 pos, norm; vec2 uv; };
 struct Mesh   { GLuint vao, vbo, ebo; int count; };
 
+
+
+
 static Mesh uploadMesh(const vector<Vertex>& verts, const vector<unsigned>& idx){
     Mesh m;
     m.count = (int)idx.size();
@@ -626,6 +629,59 @@ static void drawBoulder(vec3 pos, float r, const mat4& vp){
     draw(gProg, mSphere, m, vp, 10);
 }
 
+static void drawRocks(const mat4& vp){
+
+    drawBoulder({-25,0.5f,-10}, 1.0f, vp);
+    drawBoulder({-23,0.4f,-12}, 0.7f, vp);
+    drawBoulder({-20,0.6f,-8},  1.2f, vp);
+
+    drawBoulder({20,0.5f,-5},  1.1f, vp);
+    drawBoulder({22,0.4f,-7},  0.8f, vp);
+
+    drawBoulder({0,0.5f,0},    1.3f, vp);
+
+    drawBoulder({6,0.5f,8},    1.0f, vp);
+
+    drawBoulder({18,0.5f,-14}, 1.2f, vp);
+}
+static void drawFlower(vec3 pos, float scale, const mat4& vp){
+    // stem
+    mat4 stem = glm::translate(mat4(1), pos + vec3(0, 0.25f*scale, 0));
+    stem = glm::scale(stem, vec3(0.04f*scale, 0.5f*scale, 0.04f*scale));
+    draw(gProg, mCylinder, stem, vp, 11);
+
+    // flower head
+    vec3 head = pos + vec3(0, 0.75f*scale, 0);
+
+    // petals
+    for (int i = 0; i < 6; i++){
+        float ang = 2.0f * PI * i / 6.0f;
+
+        vec3 petalPos = head + vec3(
+            cosf(ang) * 0.22f * scale,
+            0,
+            sinf(ang) * 0.22f * scale
+        );
+
+        mat4 petal = glm::translate(mat4(1), petalPos);
+        petal = glm::scale(petal, vec3(0.18f*scale, 0.08f*scale, 0.18f*scale));
+        draw(gProg, mSphere, petal, vp, 17);
+    }
+
+    // center
+    mat4 center = glm::translate(mat4(1), head);
+    center = glm::scale(center, vec3(0.12f*scale));
+    draw(gProg, mSphere, center, vp, 15);
+}
+
+static void drawFlowers(const mat4& vp){
+    drawFlower({-6,0,-8}, 2.0f, vp);
+    drawFlower({-5,0,-8}, 1.8f, vp);
+    drawFlower({8,0,-10}, 2.0f, vp);
+    drawFlower({-10,0,10}, 2.0f, vp);
+    drawFlower({12,0,12}, 2.0f, vp);
+}
+
 // Draw lamp post
 static void drawLampPost(vec3 pos, const mat4& vp){
     // Pole
@@ -898,6 +954,9 @@ int main(){
         };
         for (auto& pp : palmPos)
             drawPalmTree(pp, 1.0f, vp);
+
+        drawRocks(vp);
+        drawFlowers(vp);
         // Smaller palms
         drawPalmTree({-4,0,-4},0.7f,vp);
         drawPalmTree({ 4,0,-4},0.7f,vp);
