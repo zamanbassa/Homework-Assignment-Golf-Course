@@ -357,6 +357,7 @@ static bool     lampsOn    = false;
 static int      currentHole = 0;
 static int      scores[18]  = {};
 static bool     aimMode     = false;
+static bool     otherSideView = false;
 
 // Global meshes
 static Mesh mSphere, mCylinder, mBox, mCone, mQuad, mTorus;
@@ -475,11 +476,24 @@ static void keyCallback(GLFWwindow* win, int key, int, int action, int){
         // Auto-advance time toggle
         case GLFW_KEY_T:
             todSpeed = (todSpeed > 0.0f) ? 0.0f : 0.002f; break;
+        case GLFW_KEY_V: 
+            otherSideView = !otherSideView;
+            if (otherSideView){
+                cam.pos   = {0,18,-28};
+                cam.yaw   = 180;
+                cam.pitch = -0.55f;
+            } else {
+                cam.pos   = {0,18,28};
+                cam.yaw   = 0;
+                cam.pitch = -0.55f;
+            }
+            break;
         case GLFW_KEY_R:
             // Reset camera
             cam.pos   = {0,18,28};
             cam.yaw   = 0;
             cam.pitch = -0.55f;
+            otherSideView = false;
             break;
         }
     }
@@ -751,6 +765,72 @@ static void drawWindmill(const Windmill& wm, const mat4& vp){
     }
 }
 
+static void drawChair(vec3 pos, float rot, const mat4& vp)
+{
+    mat4 base = glm::translate(mat4(1), pos);
+    base = glm::rotate(base, rot, vec3(0, 1, 0));
+
+    // Seat
+    mat4 seat = base;
+    seat = glm::translate(seat, vec3(0, 0.55f, 0));
+    seat = glm::scale(seat, vec3(0.9f, 0.14f, 0.9f));
+    draw(gProg, mBox, seat, vp, 17);
+
+    // Backrest
+    mat4 back = base;
+    back = glm::translate(back, vec3(0, 1.05f, 0.42f));
+    back = glm::scale(back, vec3(0.9f, 1.0f, 0.12f));
+    draw(gProg, mBox, back, vp, 17);
+
+    // Legs
+    mat4 leg1 = base;
+    leg1 = glm::translate(leg1, vec3(-0.34f, 0.27f, -0.34f));
+    leg1 = glm::scale(leg1, vec3(0.10f, 0.55f, 0.10f));
+    draw(gProg, mBox, leg1, vp, 13);
+
+    mat4 leg2 = base;
+    leg2 = glm::translate(leg2, vec3(0.34f, 0.27f, -0.34f));
+    leg2 = glm::scale(leg2, vec3(0.10f, 0.55f, 0.10f));
+    draw(gProg, mBox, leg2, vp, 13);
+
+    mat4 leg3 = base;
+    leg3 = glm::translate(leg3, vec3(-0.34f, 0.27f, 0.34f));
+    leg3 = glm::scale(leg3, vec3(0.10f, 0.55f, 0.10f));
+    draw(gProg, mBox, leg3, vp, 13);
+
+    mat4 leg4 = base;
+    leg4 = glm::translate(leg4, vec3(0.34f, 0.27f, 0.34f));
+    leg4 = glm::scale(leg4, vec3(0.10f, 0.55f, 0.10f));
+    draw(gProg, mBox, leg4, vp, 13);
+}
+
+
+
+static void drawTable(vec3 pos, const mat4& vp){
+
+    // Top
+    mat4 top = glm::translate(mat4(1), pos + vec3(0, 1, 0));
+    top = glm::scale(top, vec3(2, 0.2f, 2));
+    draw(gProg, mBox, top, vp, 17);
+
+    // Legs
+    mat4 leg1 = glm::translate(mat4(1), pos + vec3(-0.8f, 0.5f, -0.8f));
+    leg1 = glm::scale(leg1, vec3(0.1f, 1, 0.1f));
+    draw(gProg, mBox, leg1, vp, 13);
+
+    mat4 leg2 = glm::translate(mat4(1), pos + vec3(0.8f, 0.5f, -0.8f));
+    leg2 = glm::scale(leg2, vec3(0.1f, 1, 0.1f));
+    draw(gProg, mBox, leg2, vp, 13);
+
+    mat4 leg3 = glm::translate(mat4(1), pos + vec3(-0.8f, 0.5f, 0.8f));
+    leg3 = glm::scale(leg3, vec3(0.1f, 1, 0.1f));
+    draw(gProg, mBox, leg3, vp, 13);
+
+    mat4 leg4 = glm::translate(mat4(1), pos + vec3(0.8f, 0.5f, 0.8f));
+    leg4 = glm::scale(leg4, vec3(0.1f, 1, 0.1f));
+    draw(gProg, mBox, leg4, vp, 13);
+}
+
 // Draw restaurant area in center
 static void drawRestaurant(const mat4& vp){
     // Floor
@@ -769,6 +849,20 @@ static void drawRestaurant(const mat4& vp){
     {mat4 m=glm::translate(mat4(1),{-wx,wh*0.5f,4}); m=glm::scale(m,{0.3f,wh,wz*2}); draw(gProg,mBox,m,vp,8);}
     // Right wall
     {mat4 m=glm::translate(mat4(1),{wx,wh*0.5f,4}); m=glm::scale(m,{0.3f,wh,wz*2}); draw(gProg,mBox,m,vp,8);}
+
+drawTable({-6.0f,0,-3.8f}, vp);
+drawChair({-7.3f,0,-3.8f}, -1.57f, vp);
+drawChair({-4.7f,0,-3.8f},  1.57f, vp);
+drawChair({-6.0f,0,-5.1f},  3.14f, vp);
+drawChair({-6.0f,0,-2.5f},  0.0f,  vp);
+
+
+drawTable({6.0f,0,-3.8f}, vp);
+drawChair({4.7f,0,-3.8f}, -1.57f, vp);
+drawChair({7.3f,0,-3.8f},  1.57f, vp);
+drawChair({6.0f,0,-5.1f},  3.14f, vp);
+drawChair({6.0f,0,-2.5f},  0.0f,  vp);
+
     // Roof
     {
         mat4 m=glm::translate(mat4(1),{0,wh+0.4f,4});
