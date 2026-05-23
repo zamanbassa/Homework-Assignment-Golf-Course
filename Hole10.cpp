@@ -5,15 +5,15 @@
 static const float PI10 = 3.14159265358979f;
 
 // ── Derived constants ─────────────────────────────────────────────────────────
-static const float H10_RMID   = (H10_RI + H10_RO) * 0.5f; // 5.5
-// Tee at angle=0 (east), cup at angle=3π/2 (south, -z from centre)
-static const float H10_TEE_X  = H10_CX + H10_RMID;         // 51.5
-static const float H10_TEE_Z  = H10_CZ;                     // -65.0
-static const float H10_CUP_X  = H10_CX;                     // 46.0
-static const float H10_CUP_Z  = H10_CZ - H10_RMID;         // -70.5
+static const float H10_RMID   = (H10_RI + H10_RO) * 0.5f; // 4.0
+// Tee at angle=0 (east), cup at angle=3π/2 (north, -z from centre)
+static const float H10_TEE_X  = H10_CX + H10_RMID;         // 38.0
+static const float H10_TEE_Z  = H10_CZ;                     // -35.0
+static const float H10_CUP_X  = H10_CX;                     // 34.0
+static const float H10_CUP_Z  = H10_CZ - H10_RMID;         // -39.0
 // Channel bumper at the west apex (angle=π, mid-radius)
-static const float H10_BUMP_X = H10_CX - H10_RMID;         // 40.5
-static const float H10_BUMP_Z = H10_CZ;                     // -65.0
+static const float H10_BUMP_X = H10_CX - H10_RMID;         // 30.0
+static const float H10_BUMP_Z = H10_CZ;                     // -35.0
 
 // ── Local mesh helpers (mirrors main.cpp — upload() is non-static there) ─────
 static Mesh h10_makeArcFloor(float Ri, float Ro,

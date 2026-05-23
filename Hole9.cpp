@@ -6,7 +6,8 @@ static const float PI9 = 3.14159265358979f;
 // ── Tee / Cup world positions ─────────────────────────────────────────────────
 static const float H9_TEE_X = (H9_WX1 + H9_WX2) * 0.5f;   // 25.0
 static const float H9_CUP_X = (H9_EX1 + H9_EX2) * 0.5f;   // 31.0
-static const float H9_PLAY_Z = H9_ZN + 1.5f;               // -26.5  (tee/cup z)
+// H9_ZN=-44 is the south (open) end; tee is 1.5 units inside (north of) the opening
+static const float H9_PLAY_Z = H9_ZN - 1.5f;               // -45.5  (tee/cup z)
 
 // ── Constructor ───────────────────────────────────────────────────────────────
 Hole9::Hole9(const Mesh* q, const Mesh* b, const Mesh* c, const Mesh* t)
@@ -15,13 +16,13 @@ Hole9::Hole9(const Mesh* q, const Mesh* b, const Mesh* c, const Mesh* t)
 // ── render ────────────────────────────────────────────────────────────────────
 void Hole9::render(const mat4& vp) const {
     // ── Fairway floors ──────────────────────────────────────────────────────
-    const float armW  = H9_WX2 - H9_WX1;                    // 4
-    const float armL  = H9_ZS  - H9_ZN;                     // 12
-    const float connW = H9_EX2 - H9_WX1;                    // 10
-    const float connL = H9_ZB  - H9_ZS;                     //  3
-    const float armMidZ = (H9_ZN + H9_ZS) * 0.5f;           // -34
-    const float connMidZ = (H9_ZS + H9_ZB) * 0.5f;          // -41.5
-    const float connMidX = (H9_WX1 + H9_EX2) * 0.5f;        //  28
+    const float armW  = H9_WX2 - H9_WX1;                      // 4
+    const float armL  = fabsf(H9_ZS  - H9_ZN);               // 12  (positive length)
+    const float connW = H9_EX2 - H9_WX1;                      // 10
+    const float connL = fabsf(H9_ZB  - H9_ZS);               //  3  (positive length)
+    const float armMidZ  = (H9_ZN + H9_ZS) * 0.5f;           // -34
+    const float connMidZ = (H9_ZS + H9_ZB) * 0.5f;           // -41.5
+    const float connMidX = (H9_WX1 + H9_EX2) * 0.5f;         //  28
 
     {   // west arm floor
         mat4 m = glm::translate(mat4(1), {H9_TEE_X, 0.f, armMidZ});
@@ -47,7 +48,7 @@ void Hole9::render(const mat4& vp) const {
     }
 
     // ── Outer walls ─────────────────────────────────────────────────────────
-    const float fullH = H9_ZB - H9_ZN + H9_WTH * 2.f;      // total N-S span + caps
+    const float fullH = fabsf(H9_ZB - H9_ZN) + H9_WTH * 2.f; // total N-S span + caps
     // west outer
     drawWall(vp, H9_WX1 - H9_WTH * 0.5f,  H9_WH * 0.5f,
              (H9_ZN + H9_ZB) * 0.5f,
@@ -70,11 +71,10 @@ void Hole9::render(const mat4& vp) const {
              armW + H9_WTH * 2.f, H9_WH, H9_WTH);
 
     // ── Inner divider (blocks direct passage between arms above connector) ──
-    const float divW  = H9_EX1 - H9_WX2;                    // 2
-    const float divL  = -(H9_ZS - H9_ZN) + H9_WTH * 2.f;   // arm length + caps
+    const float divW = H9_EX1 - H9_WX2;                     // 2
     drawWall(vp, (H9_WX2 + H9_EX1) * 0.5f, H9_WH * 0.5f,
              armMidZ,
-             divW, H9_WH, -(armL + H9_WTH * 2.f));
+             divW, H9_WH, armL + H9_WTH * 2.f);
 
     // ── Corner bumpers: visible cylinders at inner arm-connector corners ─────
     auto drawBump = [&](float bx, float bz) {
@@ -98,11 +98,11 @@ void Hole9::wallCollide(vec3& pos, vec3& vel) const {
     if (pos.x - BR < H9_WX1) { pos.x = H9_WX1 + BR; if (vel.x < 0) vel.x =  fabsf(vel.x)*r; }
     if (pos.x + BR > H9_EX2) { pos.x = H9_EX2 - BR; if (vel.x > 0) vel.x = -fabsf(vel.x)*r; }
 
-    // North wall
-    if (pos.z - BR < H9_ZN) { pos.z = H9_ZN + BR; if (vel.z < 0) vel.z = fabsf(vel.z)*r; }
+    // South boundary: H9_ZN=-28 is the open (south) end of the U — keep ball inside
+    if (pos.z + BR > H9_ZN) { pos.z = H9_ZN - BR; if (vel.z > 0) vel.z = -fabsf(vel.z)*r; }
 
-    // South wall
-    if (pos.z + BR > H9_ZB) { pos.z = H9_ZB - BR; if (vel.z > 0) vel.z = -fabsf(vel.z)*r; }
+    // North boundary: H9_ZB=-43 is the closed (north) bottom of the U
+    if (pos.z - BR < H9_ZB) { pos.z = H9_ZB + BR; if (vel.z < 0) vel.z =  fabsf(vel.z)*r; }
 
     // Inner divider — only relevant when ball is above the connector
     if (pos.z > H9_ZS) {

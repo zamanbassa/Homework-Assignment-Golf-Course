@@ -8,6 +8,14 @@ int Hole::getNumber() const {
     return holeNum;
 }
 
+float Hole::groundY(const vec3& /*pos*/) const {
+    return BALL_R_CONST;
+}
+
+vec3 Hole::terrainForce(const vec3& /*pos*/) const {
+    return vec3(0.f, 0.f, 0.f);
+}
+
 void Hole::drawCup(const mat4& vp, float cx, float cz) const {
     const float HALF_PI = 1.5707963f;
     mat4 m;
