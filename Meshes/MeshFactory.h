@@ -14,7 +14,7 @@ public:
     MeshFactory();
     Mesh makePentagonFloor();
     Mesh makeCircle(int N=32);
-    Mesh makeArcwall(float R, float WTH, float WH, float tStart, float tEnd, int N=48);
+    Mesh makeArcWall(float R, float WTH, float WH, float tStart, float tEnd, int N=48);
     Mesh makeArcFloor(float Ri, float Ro, float tStart, float tEnd, int N=48);
     Mesh makeTriFloor(vec3 a, vec3 b, vec3 c);
     Mesh makeQuad();
@@ -23,6 +23,7 @@ public:
     Mesh makeCylinder(int sl = 18);
     Mesh makeTorus(float R = 1.f, float r = 0.05f, int sl = 28, int st = 10);
     Mesh makeTrapezoid();
+    Mesh makeSkyboxMesh();
 };
 
 #endif

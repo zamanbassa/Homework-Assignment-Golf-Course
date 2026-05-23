@@ -38,7 +38,7 @@ Mesh MeshFactory::makeCircle(int N)
 
 // Curved arc wall: hollow annular strip from tStart to tEnd, radius R, thickness WTH, height WH
 // Place at origin; translate to loop centre when drawing
-Mesh MeshFactory::makeArcwall(float R, float WTH, float WH, float tStart, float tEnd, int N)
+Mesh MeshFactory::makeArcWall(float R, float WTH, float WH, float tStart, float tEnd, int N)
 {
     vector<Vertex> V;
     vector<unsigned> I;
@@ -231,4 +231,30 @@ Mesh MeshFactory::makeTrapezoid() {
         {{-50,0, 55},{0,1,0},{0.00f,1}},
     };
     return m.upload(V,{0,1,2,0,2,3});
+}
+
+Mesh MeshFactory::makeSkyboxMesh(){
+     float v[]={
+       -1, 1,-1,-1,-1,-1, 1,-1,-1, 1,-1,-1, 1, 1,-1,-1, 1,-1,
+       -1,-1, 1,-1,-1,-1,-1, 1,-1,-1, 1,-1,-1, 1, 1,-1,-1, 1,
+        1,-1,-1, 1,-1, 1, 1, 1, 1, 1, 1, 1, 1, 1,-1, 1,-1,-1,
+       -1,-1, 1,-1, 1, 1, 1, 1, 1, 1, 1, 1, 1,-1, 1,-1,-1, 1,
+       -1, 1,-1, 1, 1,-1, 1, 1, 1, 1, 1, 1,-1, 1, 1,-1, 1,-1,
+       -1,-1,-1,-1,-1, 1, 1,-1,-1, 1,-1,-1,-1,-1, 1, 1,-1, 1,
+    };
+    GLuint vao,vbo;
+    glGenVertexArrays(1,&vao); glGenBuffers(1,&vbo);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER,vbo);
+    glBufferData(GL_ARRAY_BUFFER,sizeof(v),v,GL_STATIC_DRAW);
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+    Mesh m; 
+    m.setVAO(vao);
+    m.setVBO(vbo);
+    m.setEBO(0);
+    m.setCount(36);
+    
+    return m;
 }

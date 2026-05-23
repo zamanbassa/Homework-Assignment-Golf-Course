@@ -22,6 +22,26 @@ GLuint Mesh::EBO() const
     return ebo;
 }
 
+void Mesh::setVAO(GLuint vao)
+{
+    this->vao = vao;
+}
+
+void Mesh::setVBO(GLuint vbo)
+{
+    this->vbo = vbo;
+}
+
+void Mesh::setEBO(GLuint ebo)
+{
+    this->ebo = ebo;
+}
+
+void Mesh::setCount(int c)
+{
+    this->count = count;
+}
+
 Mesh Mesh::upload(const vector<Vertex> &V, const vector<unsigned> &I)
 {
     // create empty mesh
@@ -53,9 +73,9 @@ Mesh Mesh::upload(const vector<Vertex> &V, const vector<unsigned> &I)
     return m;
 }
 
-void Mesh::freeMesh(Mesh &m)
+void Mesh::freeMesh()
 {
-    glDeleteBuffers(1, &m.vbo);
-    glDeleteBuffers(1, &m.ebo);
-    glDeleteVertexArrays(1, &m.vao);
+    glDeleteBuffers(1, &vbo);
+    glDeleteBuffers(1, &ebo);
+    glDeleteVertexArrays(1, &vao);
 }

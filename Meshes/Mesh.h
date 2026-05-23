@@ -22,7 +22,13 @@ public:
     GLuint VAO() const; // getVAO
     GLuint VBO() const; // getVBO
     GLuint EBO() const; // getEBO
+
+    void setVAO(GLuint vao);
+    void setVBO(GLuint vbo);
+    void setEBO(GLuint ebo);
+    void setCount(int c);
+
     Mesh upload(const vector<Vertex> &V, const vector<unsigned> &I);
-    void freeMesh(Mesh &m);
+    void freeMesh();
 };
 #endif
