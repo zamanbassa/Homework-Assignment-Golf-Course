@@ -96,40 +96,139 @@ Mesh MeshFactory::makeTriFloor(vec3 a, vec3 b, vec3 c)
 }
 
 // Horizontal quad in XZ plane, facing up, UV 0-1
-Mesh MeshFactory::makeQuad() {
-    vector<Vertex> V={
-        {{-0.5f,0,-0.5f},{0,1,0},{0,0}},    // vertex,normal,texture
-        {{ 0.5f,0,-0.5f},{0,1,0},{1,0}},
-        {{ 0.5f,0, 0.5f},{0,1,0},{1,1}},
-        {{-0.5f,0, 0.5f},{0,1,0},{0,1}},
+Mesh MeshFactory::makeQuad()
+{
+    vector<Vertex> V = {
+        {{-0.5f, 0, -0.5f}, {0, 1, 0}, {0, 0}}, // vertex,normal,texture
+        {{0.5f, 0, -0.5f}, {0, 1, 0}, {1, 0}},
+        {{0.5f, 0, 0.5f}, {0, 1, 0}, {1, 1}},
+        {{-0.5f, 0, 0.5f}, {0, 1, 0}, {0, 1}},
     };
-    return m.upload(V,{0,1,2,0,2,3}); // v and indices to draw
+    return m.upload(V, {0, 1, 2, 0, 2, 3}); // v and indices to draw
 }
 
 // Unit box [-0.5,0.5]^3
-Mesh MeshFactory::makeBox() {
-     vector<Vertex> V; vector<unsigned> I;
-    struct F{ vec3 n,u,v,o; };  // faces : normal, right, up ,origin
-    F fs[6]={
-        {{0,0,1},{1,0,0},{0,1,0},{-0.5f,-0.5f,0.5f}},
-        {{0,0,-1},{-1,0,0},{0,1,0},{0.5f,-0.5f,-0.5f}},
-        {{1,0,0},{0,0,-1},{0,1,0},{0.5f,-0.5f,0.5f}},
-        {{-1,0,0},{0,0,1},{0,1,0},{-0.5f,-0.5f,-0.5f}},
-        {{0,1,0},{1,0,0},{0,0,-1},{-0.5f,0.5f,0.5f}},
-        {{0,-1,0},{1,0,0},{0,0,1},{-0.5f,-0.5f,-0.5f}},
+Mesh MeshFactory::makeBox()
+{
+    vector<Vertex> V;
+    vector<unsigned> I;
+    struct F
+    {
+        vec3 n, u, v, o;
+    }; // faces : normal, right, up ,origin
+    F fs[6] = {
+        {{0, 0, 1}, {1, 0, 0}, {0, 1, 0}, {-0.5f, -0.5f, 0.5f}},
+        {{0, 0, -1}, {-1, 0, 0}, {0, 1, 0}, {0.5f, -0.5f, -0.5f}},
+        {{1, 0, 0}, {0, 0, -1}, {0, 1, 0}, {0.5f, -0.5f, 0.5f}},
+        {{-1, 0, 0}, {0, 0, 1}, {0, 1, 0}, {-0.5f, -0.5f, -0.5f}},
+        {{0, 1, 0}, {1, 0, 0}, {0, 0, -1}, {-0.5f, 0.5f, 0.5f}},
+        {{0, -1, 0}, {1, 0, 0}, {0, 0, 1}, {-0.5f, -0.5f, -0.5f}},
     };
-    for(int f=0;f<6;f++){
-        unsigned b=(unsigned)V.size();
-        for(int vi=0;vi<4;vi++){
-            float uu=(vi==1||vi==2)?1.f:0.f, vv=(vi==2||vi==3)?1.f:0.f;
-            V.push_back({fs[f].o+fs[f].u*uu+fs[f].v*vv, fs[f].n, {uu,vv}});
+    for (int f = 0; f < 6; f++)
+    {
+        unsigned b = (unsigned)V.size();
+        for (int vi = 0; vi < 4; vi++)
+        {
+            float uu = (vi == 1 || vi == 2) ? 1.f : 0.f, vv = (vi == 2 || vi == 3) ? 1.f : 0.f;
+            V.push_back({fs[f].o + fs[f].u * uu + fs[f].v * vv, fs[f].n, {uu, vv}});
         }
-        I.insert(I.end(),{b,b+1,b+2,b,b+2,b+3});
+        I.insert(I.end(), {b, b + 1, b + 2, b, b + 2, b + 3});
     }
+    return m.upload(V, I);
+}
+
+// Sphere (for ball)
+Mesh MeshFactory::makeSphere(int st, int sl)
+{
+    vector<Vertex> V;
+    vector<unsigned> I;
+    for (int i = 0; i <= st; i++)
+    {
+        float phi = PI * i / st;
+        for (int j = 0; j <= sl; j++)
+        {
+            float th = 2 * PI * j / sl;
+            vec3 n = {sinf(phi) * cosf(th), cosf(phi), sinf(phi) * sinf(th)};
+            V.push_back({n, n, {(float)j / sl, (float)i / st}});
+        }
+    }
+    for (int i = 0; i < st; i++)
+        for (int j = 0; j < sl; j++)
+        {
+            unsigned a = i * (sl + 1) + j, b = a + 1, c = (i + 1) * (sl + 1) + j, d = c + 1;
+            I.insert(I.end(), {a, c, b, b, c, d});
+        }
+    return m.upload(V, I);
+}
+
+// Cylinder (for flag pole & restaurant pillars)
+Mesh MeshFactory::makeCylinder(int sl)
+{
+    vector<Vertex> V;
+    vector<unsigned> I;
+    for (int i = 0; i <= sl; i++)
+    {
+        float th = 2 * PI * i / sl;
+        vec3 n = {cosf(th), 0, sinf(th)};
+        V.push_back({{0.5f * cosf(th), 0, 0.5f * sinf(th)}, n, {(float)i / sl, 0}});
+        V.push_back({{0.5f * cosf(th), 1, 0.5f * sinf(th)}, n, {(float)i / sl, 1}});
+    }
+    for (int i = 0; i < sl; i++)
+    {
+        unsigned a = 2 * i, b = 2 * i + 1, c = 2 * (i + 1), d = 2 * (i + 1) + 1;
+        I.insert(I.end(), {a, b, c, b, d, c});
+    }
+    // top cap
+    unsigned tc = (unsigned)V.size();
+    V.push_back({{0, 1, 0}, {0, 1, 0}, {0.5f, 0.5f}});
+    for (int i = 0; i <= sl; i++)
+    {
+        float th = 2 * PI * i / sl;
+        V.push_back({{0.5f * cosf(th), 1, 0.5f * sinf(th)}, {0, 1, 0}, {0.5f + 0.5f * cosf(th), 0.5f + 0.5f * sinf(th)}});
+    }
+    for (int i = 0; i < sl; i++)
+        I.insert(I.end(), {tc, tc + 1 + i, tc + 2 + i});
+    // bottom cap
+    unsigned bc = (unsigned)V.size();
+    V.push_back({{0, 0, 0}, {0, -1, 0}, {0.5f, 0.5f}});
+    for (int i = 0; i <= sl; i++)
+    {
+        float th = 2 * PI * i / sl;
+        V.push_back({{0.5f * cosf(th), 0, 0.5f * sinf(th)}, {0, -1, 0}, {0.5f + 0.5f * cosf(th), 0.5f + 0.5f * sinf(th)}});
+    }
+    for (int i = 0; i < sl; i++)
+        I.insert(I.end(), {bc, bc + 2 + i, bc + 1 + i});
+    return m.upload(V, I);
+}
+
+// Torus (cup rim)
+Mesh MeshFactory::makeTorus(float R, float r, int sl, int st) {
+    vector<Vertex> V; vector<unsigned> I;
+    for(int i=0;i<=sl;i++){
+        float th=2*PI*i/sl;
+        for(int j=0;j<=st;j++){
+            float ph=2*PI*j/st;
+            vec3 n={cosf(th)*cosf(ph),sinf(ph),sinf(th)*cosf(ph)};
+            vec3 p={(R+r*cosf(ph))*cosf(th),r*sinf(ph),(R+r*cosf(ph))*sinf(th)};
+            V.push_back({p,n,{(float)i/sl,(float)j/st}});
+        }
+    }
+    for(int i=0;i<sl;i++)
+        for(int j=0;j<st;j++){
+            unsigned a=i*(st+1)+j,b=a+1,c=(i+1)*(st+1)+j,d=c+1;
+            I.insert(I.end(),{a,c,b,b,c,d});
+        }
     return m.upload(V,I);
 }
 
-Mesh MeshFactory::makeSphere(int st, int sl) {}
-Mesh MeshFactory::makeCylinder(int sl) {}
-Mesh MeshFactory::makeTorus(float R, float r, int sl, int st) {}
-Mesh MeshFactory::makeTrapezoid() {}
+// Trapezoidal property grass (wider at south)
+Mesh MeshFactory::makeTrapezoid() {
+     // North edge: z=-55, half-width=40 | South edge: z=+55, half-width=50
+    vector<Vertex> V={
+        {{-40,0,-55},{0,1,0},{0.03f,0}},
+        {{ 40,0,-55},{0,1,0},{0.97f,0}},
+        {{ 50,0, 55},{0,1,0},{1.00f,1}},
+        {{-50,0, 55},{0,1,0},{0.00f,1}},
+    };
+    return m.upload(V,{0,1,2,0,2,3});
+}
