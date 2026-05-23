@@ -1,6 +1,6 @@
 CXX      = g++
 CXXFLAGS = -std=c++11 -g -O2
-SRC      = main.cpp shader.cpp
+SRC      = main.cpp shader.cpp Hole.cpp Hole9.cpp Hole10.cpp
 TARGET   = golf
 
 # Detect platform

@@ -30,6 +30,8 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "shader.hpp"
+#include "Hole9.h"
+#include "Hole10.h"
 
 using namespace std;
 using glm::vec2;
@@ -43,10 +45,9 @@ static const int   WIN_W = 1280;
 static const int   WIN_H = 800;
 
 // ─── Mesh helpers ────────────────────────────────────────────────────────────
-struct Vertex { vec3 pos, norm; vec2 uv; };
-struct Mesh   { GLuint vao, vbo, ebo; int count; };
+// Vertex / Mesh types come from Mesh.h (included via Hole9.h / Hole10.h)
 
-static Mesh upload(const vector<Vertex>& V, const vector<unsigned>& I){
+Mesh upload(const vector<Vertex>& V, const vector<unsigned>& I){
     Mesh m; m.count=(int)I.size();
     glGenVertexArrays(1,&m.vao); glGenBuffers(1,&m.vbo); glGenBuffers(1,&m.ebo);
     glBindVertexArray(m.vao);
@@ -60,7 +61,7 @@ static Mesh upload(const vector<Vertex>& V, const vector<unsigned>& I){
     glBindVertexArray(0);
     return m;
 }
-static void freeMesh(Mesh& m){
+void freeMesh(Mesh& m){
     glDeleteBuffers(1,&m.vbo); glDeleteBuffers(1,&m.ebo);
     glDeleteVertexArrays(1,&m.vao);
 }
@@ -346,6 +347,9 @@ static const float H8_LEN =  9.0f; // length base→apex
 
 static int gCurrentHole = 1;
 
+static Hole9*  gHole9  = nullptr;
+static Hole10* gHole10 = nullptr;
+
 struct Ball {
     vec3  pos    = {HOLE1_X, BALL_R, HOLE1_Z+5.5f};
     vec3  vel    = {0,0,0};
@@ -449,6 +453,10 @@ struct Ball {
                     if(vn<0){ vel.x-=(1.f+r)*vn*nx; vel.z-=(1.f+r)*vn*nz; }
                 }
             }
+        } else if (gCurrentHole == 9 && gHole9) {
+            gHole9->wallCollide(pos, vel);
+        } else if (gCurrentHole == 10 && gHole10) {
+            gHole10->wallCollide(pos, vel);
         } else if (gCurrentHole == 7) {
             // Hole 7 — S-shape: two semicircle arcs, no straight sections
             const float ri  = H7_RA - H7_FW*0.5f;
@@ -572,6 +580,8 @@ struct Ball {
             float cx = H8_BX + H8_LEN - 1.5f;
             return glm::length(vec3(pos.x-cx,0,pos.z-H8_CZ)) < 0.35f;
         }
+        if(gCurrentHole==9  && gHole9)  return gHole9->nearCup(pos);
+        if(gCurrentHole==10 && gHole10) return gHole10->nearCup(pos);
         return false;
     }
 } ball;
@@ -586,7 +596,7 @@ static bool   skipFirst = true;
 static double lastMX    = 0, lastMY = 0;
 
 // ─── draw() shorthand ────────────────────────────────────────────────────────
-static void draw(const Mesh& m, const mat4& model, const mat4& vp, int surf){
+void draw(const Mesh& m, const mat4& model, const mat4& vp, int surf){
     mat4 mvp = vp*model;
     glUniformMatrix4fv(glGetUniformLocation(gProg,"uMVP"),  1,GL_FALSE,glm::value_ptr(mvp));
     glUniformMatrix4fv(glGetUniformLocation(gProg,"uModel"),1,GL_FALSE,glm::value_ptr(model));
@@ -691,6 +701,10 @@ static void cbKey(GLFWwindow* w, int key, int, int act, int){
         else if(gCurrentHole==6){ sx=H6_CX; sz=H6_TEE_Z; teeZ=H6_TEE_Z-1.0f; }
         else if(gCurrentHole==7){ sx=H7_X0+H7_LS+1.0f; sz=H7_Z0+1.0f; teeZ=H7_Z0+1.0f; }
         else if(gCurrentHole==8){ sx=H8_BX+0.8f; sz=H8_CZ; teeZ=H8_CZ; }
+        else if(gCurrentHole==9  && gHole9){
+            vec3 tp=gHole9->getTeePos();  sx=tp.x; sz=tp.z; teeZ=tp.z; }
+        else if(gCurrentHole==10 && gHole10){
+            vec3 tp=gHole10->getTeePos(); sx=tp.x; sz=tp.z; teeZ=tp.z; }
         else { sx=H8_BX+0.8f; sz=H8_CZ; teeZ=H8_CZ; }
         ball.pos    = {sx, BALL_R, teeZ};
         ball.vel    = {0,0,0};
@@ -1157,6 +1171,9 @@ int main(){
     mH8Floor = makeTriFloor({0,0,-H8_HW},{0,0,H8_HW},{H8_LEN,0,0});
     mSkybox   = makeSkyboxMesh();
 
+    gHole9  = new Hole9 (&mQuad, &mBox, &mCylinder, &mTorus);
+    gHole10 = new Hole10(&mQuad, &mBox, &mCylinder, &mTorus);
+
     double prev = glfwGetTime();
 
     while(!glfwWindowShouldClose(gWin)){
@@ -1201,7 +1218,7 @@ int main(){
             ball.moving = false;
             printf("Hole %d: %d stroke%s\n",
                    gCurrentHole, ball.strokes, ball.strokes==1?"":"s");
-            if(gCurrentHole < 7){
+            if(gCurrentHole < 10){
                 gCurrentHole++;
                 float nx,nz,nteeZ;
                 if(gCurrentHole==2)      { nx=HOLE2_X; nz=HOLE2_Z; nteeZ=nz+5.5f; }
@@ -1209,6 +1226,12 @@ int main(){
                 else if(gCurrentHole==4) { nx=HOLE4_CX+(H4_RI+H4_RO)*0.5f; nz=HOLE4_CZ; nteeZ=nz; }
                 else if(gCurrentHole==5) { nx=HOLE5_CX; nz=HOLE5_CZ; nteeZ=HOLE5_CZ+H5_R-1.5f; }
                 else if(gCurrentHole==6) { nx=H6_CX; nz=H6_TEE_Z; nteeZ=H6_TEE_Z-1.0f; }
+                else if(gCurrentHole==7) { nx=H7_X0+H7_LS+0.5f; nz=H7_Z0; nteeZ=H7_Z0; }
+                else if(gCurrentHole==8) { nx=H8_BX+0.8f; nz=H8_CZ; nteeZ=H8_CZ; }
+                else if(gCurrentHole==9  && gHole9){
+                    vec3 tp=gHole9->getTeePos();  nx=tp.x; nz=tp.z; nteeZ=tp.z; }
+                else if(gCurrentHole==10 && gHole10){
+                    vec3 tp=gHole10->getTeePos(); nx=tp.x; nz=tp.z; nteeZ=tp.z; }
                 else                     { nx=H7_X0+H7_LS+0.5f; nz=H7_Z0; nteeZ=H7_Z0; }
                 ball.pos = {nx, BALL_R, nteeZ};
                 ball.vel = {0,0,0};
@@ -1266,6 +1289,8 @@ int main(){
         drawHole6(vp);
         drawHole7(vp);
         drawHole8(vp);
+        if(gHole9)  gHole9->render(vp);
+        if(gHole10) gHole10->render(vp);
 
         // Restaurant
         drawRestaurant(vp);
@@ -1300,6 +1325,9 @@ int main(){
         glfwSwapBuffers(gWin);
         glfwPollEvents();
     }
+
+    delete gHole9;  gHole9  = nullptr;
+    delete gHole10; gHole10 = nullptr;
 
     freeMesh(mQuad); freeMesh(mBox); freeMesh(mSphere);
     freeMesh(mCylinder); freeMesh(mTorus); freeMesh(mTrap); freeMesh(mCircle);
