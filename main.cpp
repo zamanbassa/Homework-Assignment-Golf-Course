@@ -124,8 +124,8 @@ static Mesh makeArcWall(float R, float WTH, float WH, float tStart, float tEnd, 
     }
     return upload(V,I);
 }
-
 // Filled arc strip in XZ plane (annular sector floor), facing up
+
 static Mesh makeArcFloor(float Ri, float Ro, float tStart, float tEnd, int N=48){
     vector<Vertex> V; vector<unsigned> I;
     float dt=(tEnd-tStart)/N;

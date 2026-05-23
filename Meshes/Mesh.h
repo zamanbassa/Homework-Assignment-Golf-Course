@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <vector>
+#include "Vertex.h"
 
 using namespace glm;
 using namespace std;
@@ -16,12 +17,6 @@ private:
     int count;
 
 public:
-    struct Vertex
-    {
-        vec3 pos, norm;
-        vec2 uv;
-    };
-
     Mesh();
     int Count() const;  // getCount()
     GLuint VAO() const; // getVAO
