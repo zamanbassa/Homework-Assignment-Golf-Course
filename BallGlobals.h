@@ -1,3 +1,6 @@
+#ifndef BALLGLOBALS_H
+#define BALLGLOBALS_H
+
 // Fairway bounds (half-widths, relative to hole centre)
 static const float FW_X = 2.00f;
 static const float FW_ZN = -6.50f;
@@ -57,3 +60,5 @@ static const float H8_HW = 3.5f;  // half-width at base
 static const float H8_LEN = 9.0f; // length base→apex
 
 static int gCurrentHole = 1;
+
+#endif
