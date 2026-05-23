@@ -644,8 +644,10 @@ static void drawRocks(const mat4& vp){
 
     drawBoulder({18,0.5f,-14}, 1.2f, vp);
 }
-static void drawFlower(vec3 pos, float scale, const mat4& vp){
-    // stem
+static void drawFlower(vec3 pos, float scale, const mat4& vp)
+{
+
+    // stem of the flower
     mat4 stem = glm::translate(mat4(1), pos + vec3(0, 0.25f*scale, 0));
     stem = glm::scale(stem, vec3(0.04f*scale, 0.5f*scale, 0.04f*scale));
     draw(gProg, mCylinder, stem, vp, 11);
@@ -653,7 +655,7 @@ static void drawFlower(vec3 pos, float scale, const mat4& vp){
     // flower head
     vec3 head = pos + vec3(0, 0.75f*scale, 0);
 
-    // petals
+    // petals of the flower
     for (int i = 0; i < 6; i++){
         float ang = 2.0f * PI * i / 6.0f;
 
@@ -668,7 +670,7 @@ static void drawFlower(vec3 pos, float scale, const mat4& vp){
         draw(gProg, mSphere, petal, vp, 17);
     }
 
-    // center
+    // center of the flowers
     mat4 center = glm::translate(mat4(1), head);
     center = glm::scale(center, vec3(0.12f*scale));
     draw(gProg, mSphere, center, vp, 15);
