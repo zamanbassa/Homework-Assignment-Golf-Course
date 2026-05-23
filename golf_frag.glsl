@@ -37,6 +37,14 @@ uniform int   uLampCount;
 uniform vec3  uLampPos[32];
 uniform vec3  uLampColor;
 uniform int   uLampsOn;       // 1 if night
+<<<<<<< HEAD
+=======
+uniform int   uSpotOn;        // 1 = spotlight active
+uniform vec3  uSpotPos;       // drone world position
+uniform vec3  uSpotDir;       // normalised direction
+uniform float uSpotCutoff;    // cos of cone half-angle
+uniform float uSpotOuter;     // cos of outer cone (soft edge)
+>>>>>>> 1ec622464d8af3aea218c363d4bd521a3e6a13b7
 
 out vec4 FragColor;
 
@@ -147,6 +155,37 @@ vec3 calcSurface(){
         // Restaurant roof — terracotta/clay
         float n = fbm(vUV * 5.0);
         col = vec3(0.72+0.08*n, 0.32+0.06*n, 0.18+0.04*n);
+<<<<<<< HEAD
+=======
+    } else if (uSurface == 21){
+        // Red brick path — staggered bond pattern
+        float row  = floor(vUV.y * 8.0);
+        float off  = mod(row, 2.0) * 0.5;
+        vec2  bUV  = vec2(fract(vUV.x * 4.0 + off), fract(vUV.y * 8.0));
+        float mort = step(bUV.x, 0.06) + step(1.0-bUV.x, 0.06)
+                   + step(bUV.y, 0.09) + step(1.0-bUV.y, 0.09);
+        float var  = 0.78 + 0.14*hash(floor(vec2(vUV.x*4.0+off, vUV.y*8.0)));
+        col = mix(vec3(0.70*var, 0.26*var, 0.16*var),
+                  vec3(0.44, 0.42, 0.40),
+                  clamp(mort, 0.0, 1.0));
+    } else if (uSurface == 22){
+        // Hedge / boundary bush
+        float n = fbm(vUV * 12.0);
+        float tip = 0.5 + 0.5*sin(vUV.x * 18.0 + vUV.y * 7.0);
+        col = vec3(0.05+0.03*n, 0.24+0.10*n+0.04*tip, 0.05+0.03*n);
+    } else if (uSurface == 23){
+        // Soil / dirt base
+        float n = fbm(vUV * 7.0);
+        col = vec3(0.38+0.12*n, 0.28+0.07*n, 0.17+0.05*n);
+    } else if (uSurface == 24){
+        // Drone body — charcoal grey
+        float n = fbm(vUV * 8.0) * 0.04;
+        col = vec3(0.25+n, 0.25+n, 0.28+n);
+    } else if (uSurface == 25){
+        // Drone propellers — dark grey
+        float n = fbm(vUV * 6.0) * 0.03;
+        col = vec3(0.16+n, 0.16+n, 0.18+n);
+>>>>>>> 1ec622464d8af3aea218c363d4bd521a3e6a13b7
     } else {
         col = vec3(1.0, 0.0, 1.0); // missing surface — magenta
     }
@@ -205,5 +244,19 @@ void main(){
         }
     }
 
+<<<<<<< HEAD
+=======
+	if (uSpotOn == 1){
+        vec3  toFrag  = vFragPos - uSpotPos;
+        vec3  sdir    = normalize(uSpotDir);
+        float cosA    = dot(normalize(toFrag), sdir);
+        float dist    = length(toFrag);
+        float att     = 1.0 / (1.0 + 0.05*dist + 0.01*dist*dist);
+        float cone    = smoothstep(uSpotOuter, uSpotCutoff, cosA);
+        float diff    = max(dot(norm, -sdir), 0.0);
+        lighting += col * diff * att * cone * vec3(1.0, 0.97, 0.88) * 2.5;
+    }
+
+>>>>>>> 1ec622464d8af3aea218c363d4bd521a3e6a13b7
     FragColor = vec4(lighting, 1.0);
 }
