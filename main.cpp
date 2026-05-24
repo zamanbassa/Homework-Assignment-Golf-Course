@@ -46,6 +46,9 @@
 #include "Hole8.h"
 #include "Hole9.h"
 #include "Hole10.h"
+#include "Hole11.h"
+#include "Hole12.h"
+#include "Hole13.h"
 
 using namespace std;
 using glm::vec2;
@@ -462,7 +465,7 @@ static const float BALL_R  =  0.08f;
 static const float MAX_AIM =  6.0f;
 
 static int gCurrentHole = 1;
-static Hole* gHoles[11] = {};
+static Hole* gHoles[14] = {};
 
 struct Ball {
     vec3  pos    = {H1_CX, BALL_R, H1_CZ+5.5f};
@@ -1040,7 +1043,7 @@ int main(){
     const char* crownPaths[3]={
         "textures/tropical/t_palm_shrub1/palms1.png",
         "textures/tropical/t_palm_shrub2/palms2.png",
-        "textures/tropical/t_palm_shrub3/palms3.png",
+        "textures/tropical/t_palm_shrub4/palms4.png",
     };
     for(int i=0; i<3; i++) texPalmCrown[i] = loadTexture(crownPaths[i]);
     const char* weedPaths[3]={
@@ -1066,6 +1069,9 @@ int main(){
     gHoles[8]  = new Hole8(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[9]  = new Hole9(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[10] = new Hole10(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[11] = new Hole11(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[12] = new Hole12(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[13] = new Hole13(&mQuad, &mBox, &mCylinder, &mTorus);
 
     double prev = glfwGetTime();
 
@@ -1103,7 +1109,7 @@ int main(){
             ball.moving = false;
             printf("Hole %d: %d stroke%s\n",
                    gCurrentHole, ball.strokes, ball.strokes==1?"":"s");
-            if(gCurrentHole < 10){
+            if(gCurrentHole < 13){
                 gCurrentHole++;
                 ball.pos = gHoles[gCurrentHole] ? gHoles[gCurrentHole]->getTeePos()
                                                 : vec3(0.f, BALL_R, 0.f);
@@ -1175,7 +1181,7 @@ int main(){
 
         draw(mTrap, mat4(1), vp, 2);
 
-        for(int i = 1; i <= 10; i++)
+        for(int i = 1; i <= 13; i++)
             if(gHoles[i]) gHoles[i]->render(vp);
 
         drawRestaurant(vp);
@@ -1338,7 +1344,7 @@ int main(){
         glfwPollEvents();
     }
 
-    for(int i = 1; i <= 10; i++) delete gHoles[i];
+    for(int i = 1; i <= 13; i++) delete gHoles[i];
     freeMesh(mQuad); freeMesh(mBox); freeMesh(mSphere);
     freeMesh(mCylinder); freeMesh(mTorus); freeMesh(mTrap); freeMesh(mCircle);
     freeMesh(mVQuad); freeMesh(mRockyBoulder); freeMesh(mTerrainHills);
