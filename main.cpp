@@ -437,6 +437,11 @@ struct Drone {
 } drone;
 
 static bool  droneView   = true;   // true = first-person drone-cam
+static bool  otherSideView = false;
+static bool  savedDroneView = false;
+static vec3  savedCamPos  = {-33.f, 25.f, 55.f};
+static float savedCamYaw  = 0.f;
+static float savedCamPitch= -0.50f;
 static float spotYawOff  = 0.f;    // arrow key offsets from drone facing
 static float spotPitOff  = 0.f;
 static float propAngle   = 0.f;    // spinning propellers
@@ -802,7 +807,26 @@ static void cbKey(GLFWwindow* w, int key, int, int act, int){
     case GLFW_KEY_ESCAPE: glfwSetWindowShouldClose(w,true); break;
     case GLFW_KEY_O:      cam.ortho = !cam.ortho; break;
     case GLFW_KEY_R:
-        cam.pos={-33,25,55}; cam.yaw=0; cam.pitch=-0.50f; cam.fov=60.f; break;
+        cam.pos={-33,25,55}; cam.yaw=0; cam.pitch=-0.50f; cam.fov=60.f; otherSideView = false; break;
+    case GLFW_KEY_V:
+        if(!otherSideView){
+            savedCamPos    = cam.pos;
+            savedCamYaw    = cam.yaw;
+            savedCamPitch  = cam.pitch;
+            savedDroneView = droneView;
+            droneView      = false;
+            cam.pos = vec3(-cam.pos.x, cam.pos.y, -cam.pos.z);
+            cam.yaw += PI;
+            if(cam.yaw > 2*PI) cam.yaw -= 2*PI;
+            otherSideView = true;
+        } else {
+            cam.pos   = savedCamPos;
+            cam.yaw   = savedCamYaw;
+            cam.pitch = savedCamPitch;
+            otherSideView = false;
+            droneView = savedDroneView;
+        }
+        break;
 
     // ── Toggle drone-cam / external-cam ──
     case GLFW_KEY_F:
@@ -932,12 +956,57 @@ static void drawTable(vec3 pos, const mat4& vp){
 static void drawRestaurant(const mat4& vp){
     float cx = 0.f, cz = 0.f;
     float bw = 10.f, bd = 8.f, bh = 3.5f;
-    { mat4 m = glm::translate(mat4(1),{cx,0.01f,cz}); m = glm::scale(m,{bw,1,bd}); draw(mQuad,m,vp,9); }
-    {mat4 m=glm::translate(mat4(1),{cx,bh*.5f,cz-bd*.5f}); m=glm::scale(m,{bw,.0f+bh,.28f}); draw(mBox,m,vp,8);}
-    {mat4 m=glm::translate(mat4(1),{cx,bh*.5f,cz+bd*.5f}); m=glm::scale(m,{bw,bh,.28f}); draw(mBox,m,vp,8);}
-    {mat4 m=glm::translate(mat4(1),{cx-bw*.5f,bh*.5f,cz}); m=glm::scale(m,{.28f,bh,bd}); draw(mBox,m,vp,8);}
-    {mat4 m=glm::translate(mat4(1),{cx+bw*.5f,bh*.5f,cz}); m=glm::scale(m,{.28f,bh,bd}); draw(mBox,m,vp,8);}
-    { mat4 m=glm::translate(mat4(1),{cx,bh+.2f,cz}); m=glm::scale(m,{bw+.6f,.4f,bd+.6f}); draw(mBox,m,vp,20); }
+
+    { mat4 m = glm::translate(mat4(1), {cx, 0.01f, cz}); m = glm::scale(m, {bw, 1, bd}); draw(mQuad, m, vp, 9); }
+
+    { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz-bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
+    { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz+bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
+    { mat4 m = glm::translate(mat4(1), {cx-bw*.5f, bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
+    { mat4 m = glm::translate(mat4(1), {cx+bw*.5f, bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
+
+    auto windowFrontBack = [&](float x, float z){
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {1.5f, 1.2f, 0.05f}); draw(mBox, m, vp, 15); }
+
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f+0.65f, z}); m = glm::scale(m, {1.8f, 0.12f, 0.08f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f-0.65f, z}); m = glm::scale(m, {1.8f, 0.12f, 0.08f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x-0.85f, bh*0.6f, z}); m = glm::scale(m, {0.12f, 1.4f, 0.08f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x+0.85f, bh*0.6f, z}); m = glm::scale(m, {0.12f, 1.4f, 0.08f}); draw(mBox, m, vp, 13); }
+
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {0.10f, 1.3f, 0.09f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {1.6f, 0.10f, 0.09f}); draw(mBox, m, vp, 13); }
+    };
+
+    auto windowSides = [&](float x, float z){
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {0.05f, 1.2f, 1.5f}); draw(mBox, m, vp, 15); }
+
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f+0.65f, z}); m = glm::scale(m, {0.08f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f-0.65f, z}); m = glm::scale(m, {0.08f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z-0.85f}); m = glm::scale(m, {0.08f, 1.4f, 0.12f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z+0.85f}); m = glm::scale(m, {0.08f, 1.4f, 0.12f}); draw(mBox, m, vp, 13); }
+
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {0.09f, 1.3f, 0.10f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {0.09f, 0.10f, 1.6f}); draw(mBox, m, vp, 13); }
+    };
+
+    windowFrontBack(cx-2.8f, cz+bd*0.5f+0.16f);
+    windowFrontBack(cx+2.8f, cz+bd*0.5f+0.16f);
+
+    windowFrontBack(cx-2.8f, cz-bd*0.5f-0.16f);
+    windowFrontBack(cx+2.8f, cz-bd*0.5f-0.16f);
+
+    windowSides(cx-bw*0.5f-0.16f, cz-2.f);
+    windowSides(cx-bw*0.5f-0.16f, cz+2.f);
+
+    windowSides(cx+bw*0.5f+0.16f, cz-2.f);
+    windowSides(cx+bw*0.5f+0.16f, cz+2.f);
+
+    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
+    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.25f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
+
+    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
+    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.25f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
+
+    { mat4 m = glm::translate(mat4(1), {cx, bh+.2f, cz}); m = glm::scale(m, {bw+.6f, .4f, bd+.6f}); draw(mBox, m, vp, 20); }
 }
 
 static Mesh makeSkyboxMesh(){
