@@ -12,7 +12,6 @@ Scroll wheel        Zoom in / out (changes FOV)
 = / -               Zoom in / out (keyboard zoom, same as scroll)
 O                   Toggle Orthographic / Perspective projection
 R                   Reset camera + zoom to default overview
-V                   Toggle opposite-side view
 
 GAMEPLAY
 --------

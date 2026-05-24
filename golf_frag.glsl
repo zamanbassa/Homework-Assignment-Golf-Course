@@ -182,6 +182,43 @@ vec3 calcSurface(){
         // Drone propellers — dark grey
         float n = fbm(vUV * 6.0) * 0.03;
         col = vec3(0.16+n, 0.16+n, 0.18+n);
+    } else if (uSurface == 26){
+        // Dark earth — pond island and plateau slopes
+        float n = fbm(vUV * 10.0);
+        float coarse = hash(floor(vUV * 5.0));
+        col = vec3(0.22+0.08*coarse+0.05*n, 0.14+0.05*coarse+0.03*n, 0.06+0.03*coarse+0.02*n);
+    } else if (uSurface == 27){
+        // Windmill base — very dark brown
+        float n = fbm(vUV * 6.0);
+        col = vec3(0.28+0.06*n, 0.15+0.04*n, 0.06+0.02*n);
+    } else if (uSurface == 28){
+        // Windmill step 1 — dark brown
+        float n = fbm(vUV * 7.0);
+        col = vec3(0.40+0.08*n, 0.22+0.05*n, 0.09+0.03*n);
+    } else if (uSurface == 29){
+        // Windmill steps 2-3 — medium brown
+        float n = fbm(vUV * 7.0);
+        col = vec3(0.52+0.09*n, 0.32+0.06*n, 0.14+0.04*n);
+    } else if (uSurface == 30){
+        // Windmill step 4 + roof — light brown/tan
+        float n = fbm(vUV * 8.0);
+        col = vec3(0.65+0.10*n, 0.44+0.07*n, 0.22+0.05*n);
+    } else if (uSurface == 31){
+        // Window glass — dark blue-grey
+        float n = fbm(vUV * 4.0);
+        col = vec3(0.22+0.04*n, 0.32+0.07*n, 0.48+0.10*n);
+    } else if (uSurface == 32){
+        // Door — dark warm wood
+        float grain = fbm(vec2(vUV.x*1.5, vUV.y*25.0));
+        col = vec3(0.42+0.10*grain, 0.26+0.06*grain, 0.12+0.03*grain);
+    } else if (uSurface == 33){
+        // Window frame — dark anthracite steel
+        float n = fbm(vUV * 8.0) * 0.02;
+        col = vec3(0.17+n, 0.18+n, 0.20+n);
+    } else if (uSurface == 34){
+        // Sign board — warm cream/ivory
+        float n = fbm(vUV * 3.0) * 0.04;
+        col = vec3(0.92+n, 0.88+n, 0.78+n);
     } else {
         col = vec3(1.0, 0.0, 1.0); // missing surface — magenta
     }

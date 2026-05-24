@@ -14,10 +14,10 @@ void Hole2::render(const mat4& vp) const {
     { mat4 m=glm::translate(mat4(1),{cx,0.005f,cz+5.5f}); m=glm::scale(m,{FW-0.2f,1,1.5f}); draw(*mQuad,m,vp,1); }
     for(int s=-1;s<=1;s+=2){
         mat4 m=glm::translate(mat4(1),{cx+(FW*0.5f+WTH*0.5f)*(float)s,WH*0.5f,cz});
-        m=glm::scale(m,{WTH,WH,FL+WTH*2}); draw(*mBox,m,vp,8);
+        m=glm::scale(m,{WTH,WH,FL+WTH*2}); draw(*mBox,m,vp,21);
     }
-    { mat4 m=glm::translate(mat4(1),{cx,WH*0.5f,cz-FL*0.5f-WTH*0.5f}); m=glm::scale(m,{FW+WTH*2,WH,WTH}); draw(*mBox,m,vp,8); }
-    { mat4 m=glm::translate(mat4(1),{cx,WH*0.5f,cz+FL*0.5f+WTH*0.5f}); m=glm::scale(m,{FW+WTH*2,WH,WTH}); draw(*mBox,m,vp,8); }
+    { mat4 m=glm::translate(mat4(1),{cx,WH*0.5f,cz-FL*0.5f-WTH*0.5f}); m=glm::scale(m,{FW+WTH*2,WH,WTH}); draw(*mBox,m,vp,21); }
+    { mat4 m=glm::translate(mat4(1),{cx,WH*0.5f,cz+FL*0.5f+WTH*0.5f}); m=glm::scale(m,{FW+WTH*2,WH,WTH}); draw(*mBox,m,vp,21); }
     drawCup(vp, cx, cz-5.5f);
 }
 

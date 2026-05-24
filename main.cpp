@@ -48,7 +48,6 @@
 #include "Hole10.h"
 #include "Hole11.h"
 #include "Hole12.h"
-#include "Hole13.h"
 
 using namespace std;
 using glm::vec2;
@@ -60,7 +59,6 @@ using glm::mat4;
 static const float PI    = 3.14159265358979f;
 static const int   WIN_W = 1280;
 static const int   WIN_H = 800;
-static GLuint texGolfSign;
 
 // ─── Mesh helpers ────────────────────────────────────────────────────────────
 Mesh upload(const vector<Vertex>& V, const vector<unsigned>& I){
@@ -176,6 +174,18 @@ static Mesh makeVQuad(){
         {{ 0.5f,-0.5f,0},{0,0,1},{1,1}},
         {{ 0.5f, 0.5f,0},{0,0,1},{1,0}},
         {{-0.5f, 0.5f,0},{0,0,1},{0,0}},
+    };
+    return upload(V,{0,1,2,0,2,3});
+}
+
+// Vertical quad that samples only the right 60% of a texture atlas (frond portion of lpalm1.png)
+static Mesh makeLeafVQuad(){
+    const float u0 = 0.40f, u1 = 1.0f;
+    vector<Vertex> V={
+        {{-0.5f,-0.5f,0},{0,0,1},{u0,1}},
+        {{ 0.5f,-0.5f,0},{0,0,1},{u1,1}},
+        {{ 0.5f, 0.5f,0},{0,0,1},{u1,0}},
+        {{-0.5f, 0.5f,0},{0,0,1},{u0,0}},
     };
     return upload(V,{0,1,2,0,2,3});
 }
@@ -350,13 +360,19 @@ static GLuint loadTexture(const char* path){
 }
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
+static constexpr float PLAT_H = 0.85f;   // restaurant plateau height
+
 static GLuint    gProg, skyProg, skyTex;
 static Mesh      mQuad, mBox, mSphere, mCylinder, mTorus, mTrap, mSkybox, mCircle;
 static Mesh      mTerrainHills;
-static Mesh      mVQuad;        // vertical quad for billboards
-static Mesh      mRockyBoulder; // low-poly displaced sphere
+static Mesh      mVQuad;              // vertical quad for billboards
+static Mesh      mLeafVQuad;          // vertical quad sampling frond half of lpalm1 atlas
+static Mesh      mRockyBoulder;       // low-poly displaced sphere
 static Mesh      mRiver, mRiverBank;
 static Mesh      mTaperedCyl;
+static Mesh      mThickCyl;           // short, thick palm trunk (low palm)
+static Mesh      mRestaurantPlateau;  // raised terrain around restaurant
+static Mesh      mTerrainWest;        // elongated hill bank along west edge
 
 // ─── Texture handles ──────────────────────────────────────────────────────────
 static GLuint texRock[8];       // rocks/rock1-8.bmp
@@ -365,6 +381,9 @@ static GLuint texPalmCrown[3];  // tropical/t_palm_shrubN/palmsN.png  (leaf crow
 static GLuint texWeed[3];       // tropical/t_trop_weedN/tropwN.png
 static GLuint texShrub[2];      // tropical/t_trop_shrubN/tropsN.png
 static GLuint texConcrete;      // rocks/floor1.bmp (concrete slabs)
+static GLuint texAgave;         // tropical/t_agave1/agava1.png
+static GLuint texFlax;          // tropical/t_flax1_green/flax1g.png
+static GLuint texLowPalmCrown;  // tropical/t_lowpalm1/lpalm1.png
 static GLFWwindow* gWin = nullptr;
 static float     timeOfDay = 0.45f;
 static float     todSpeed  = 0.005f;
@@ -389,11 +408,11 @@ static vec3 LAMP_POSITIONS[] = {
     {  4.f,  0.f, -50.f},   // H7 cup area
     { 10.f,  0.f, -48.f},   // between H7 and H8
     { 22.f,  0.f, -49.f},   // H8 cup area
-    // Restaurant area (corner lamps — outside walls of enlarged 10×8 building)
-    { -6.f,  0.f,   5.f},
-    {  6.f,  0.f,   5.f},
-    { -6.f,  0.f,  -5.f},
-    {  6.f,  0.f,  -5.f},
+    // Restaurant area (corner lamps — on the plateau top)
+    { -6.f,  PLAT_H,   5.f},
+    {  6.f,  PLAT_H,   5.f},
+    { -6.f,  PLAT_H,  -5.f},
+    {  6.f,  PLAT_H,  -5.f},
     // Pond lamp (right bank)
     { 24.f,  0.f,  15.f},
 };
@@ -430,6 +449,26 @@ static float hillH(float x, float z){
     return terrainH(x,z) * fade1(px) * fade1(pz);
 }
 
+// ─── West hill banks (x=-49..-35, z=-46..44) ─────────────────────────────────
+static const TerHill TERHILLS_WEST[] = {
+    {-44.f, -38.f, 1.8f, 3.5f},
+    {-45.f, -24.f, 1.5f, 3.5f},
+    {-44.f,  -9.f, 1.7f, 3.0f},
+    {-45.f,   6.f, 1.4f, 3.5f},
+    {-44.f,  19.f, 1.6f, 3.0f},
+    {-45.f,  31.f, 1.5f, 3.5f},
+    {-44.f,  40.f, 1.8f, 3.0f},
+};
+static const int TERHILL_WEST_N = (int)(sizeof(TERHILLS_WEST)/sizeof(TERHILLS_WEST[0]));
+static float terrainHW(float x, float z){
+    float h = 0;
+    for(int i = 0; i < TERHILL_WEST_N; i++){
+        float dx = x - TERHILLS_WEST[i].x, dz = z - TERHILLS_WEST[i].z;
+        h += TERHILLS_WEST[i].h * expf(-(dx*dx+dz*dz)/(2.f*TERHILLS_WEST[i].sig*TERHILLS_WEST[i].sig));
+    }
+    return h;
+}
+
 // ─── Drone state ──────────────────────────────────────────────────────────────
 struct Drone {
     vec3  pos   = {-33.f, 12.f, 20.f};
@@ -438,11 +477,6 @@ struct Drone {
 } drone;
 
 static bool  droneView   = true;   // true = first-person drone-cam
-static bool  otherSideView = false;
-static bool  savedDroneView = false;
-static vec3  savedCamPos  = {-33.f, 25.f, 55.f};
-static float savedCamYaw  = 0.f;
-static float savedCamPitch= -0.50f;
 static float spotYawOff  = 0.f;    // arrow key offsets from drone facing
 static float spotPitOff  = 0.f;
 static float propAngle   = 0.f;    // spinning propellers
@@ -470,8 +504,9 @@ struct Camera {
 static const float BALL_R  =  0.08f;
 static const float MAX_AIM =  6.0f;
 
-static int gCurrentHole = 1;
-static Hole* gHoles[14] = {};
+static int   gCurrentHole  = 1;
+static Hole* gHoles[13]   = {};   // indices 1-12
+static float windmillAngle = 0.f; // Hole 11 windmill rotor
 
 struct Ball {
     vec3  pos    = {H1_CX, BALL_R, H1_CZ+5.5f};
@@ -685,6 +720,95 @@ static Mesh makeHillTerrain(float x0, float z0, float w, float d, int nx, int nz
     return upload(V, I);
 }
 
+// West-edge hill bank: elongated strip of rolling mounds along the west boundary.
+// Edge fades applied on east side (stops at holes), south end (meets river bank),
+// and north end so every edge blends smoothly to flat ground.
+static Mesh makeWestHillTerrain(){
+    const float x0=-49.f, z0=-55.f, w=12.f, d=99.f;  // east limit x=-37, north z=-55
+    const int   nx=24,    nz=99;
+    auto ss = [](float t) -> float {          // smoothstep 0→1
+        float f = glm::clamp(t, 0.f, 1.f);
+        return f * f * (3.f - 2.f*f);
+    };
+    // fullH applies all three edge fades to the raw Gaussian terrain
+    auto fullH = [&](float x, float z) -> float {
+        float fe = ss((-37.f - x)   / 5.f);   // drops to 0 at x=-37 (hole boundary)
+        float fs = ss(( 44.f - z)   / 9.f);   // drops to 0 at z=44  (south edge / river)
+        float fn = ss((z - (-55.f)) / 5.f);   // drops to 0 at z=-55 (north course edge)
+        return terrainHW(x, z) * fe * fs * fn;
+    };
+    vector<Vertex> V; vector<unsigned> I;
+    float ddx=w/nx, ddz=d/nz, eps=0.4f;
+    for(int iz=0; iz<=nz; iz++){
+        for(int ix=0; ix<=nx; ix++){
+            float x=x0+ix*ddx, z=z0+iz*ddz;
+            float y    = fullH(x, z);
+            float hxp  = fullH(x+eps, z), hxn = fullH(x-eps, z);
+            float hzp  = fullH(x, z+eps), hzn = fullH(x, z-eps);
+            vec3 norm  = glm::normalize(vec3(-(hxp-hxn)/(2*eps), 1.f, -(hzp-hzn)/(2*eps)));
+            V.push_back({{x, y, z}, norm, {(float)ix/nx, (float)iz/nz}});
+        }
+    }
+    for(int iz=0; iz<nz; iz++)
+        for(int ix=0; ix<nx; ix++){
+            unsigned a=iz*(nx+1)+ix;
+            I.insert(I.end(),{a, a+(unsigned)(nx+1), a+1,
+                              a+1, a+(unsigned)(nx+1), a+(unsigned)(nx+1)+1});
+        }
+    return upload(V,I);
+}
+
+// Restaurant plateau: smooth smoothstep rise from ground level up to PLAT_H.
+// Flat top covers the building + all concrete slabs (x∈[-8,9], z∈[-7,8]).
+// Slope fades to zero over 6 units on every side.
+static Mesh makeRestaurantPlateau(){
+    const float cx = 0.5f, cz = 0.5f;   // centre of the flat region
+    const float px = 8.5f, pz = 7.5f;   // half-extents of flat top
+    const float sw = 6.0f;              // slope width (units)
+
+    const float x0 = cx - px - sw;      // = -14
+    const float z0 = cz - pz - sw;      // = -13
+    const float w  = 2.f*(px + sw);     // = 29
+    const float d  = 2.f*(pz + sw);     // = 27
+    const int   nx = 58, nz = 54;
+
+    auto platH = [&](float x, float z) -> float {
+        float ax = fabsf(x - cx), az = fabsf(z - cz);
+        float fx = glm::clamp((px + sw - ax) / sw, 0.f, 1.f);
+        float fz = glm::clamp((pz + sw - az) / sw, 0.f, 1.f);
+        float f  = glm::min(fx, fz);
+        // East-side crop: stop at the river's west bank so the plateau
+        // doesn't rise into the pond.  Bank runs from x≈14.5 at z=0 down
+        // to x≈7.9 at z=12, matching the computed left-bank positions.
+        if(x > cx){
+            float x_bank = 14.5f - 0.55f * glm::clamp(z, 0.f, 12.f);
+            float bank_fx = glm::clamp((x_bank - x) / 2.f, 0.f, 1.f);
+            f = glm::min(f, bank_fx);
+        }
+        return PLAT_H * f * f * (3.f - 2.f*f);
+    };
+
+    vector<Vertex> V; vector<unsigned> I;
+    float ddx = w/nx, ddz = d/nz, eps = 0.25f;
+    for(int iz = 0; iz <= nz; iz++){
+        for(int ix = 0; ix <= nx; ix++){
+            float x = x0 + ix*ddx, z = z0 + iz*ddz;
+            float y = platH(x, z) + 0.001f;   // +0.001 to sit above flat trapezoid
+            float hxp = platH(x+eps, z), hxn = platH(x-eps, z);
+            float hzp = platH(x, z+eps), hzn = platH(x, z-eps);
+            vec3 norm = glm::normalize(vec3(-(hxp-hxn)/(2*eps), 1.f, -(hzp-hzn)/(2*eps)));
+            V.push_back({{x, y, z}, norm, {(float)ix/nx, (float)iz/nz}});
+        }
+    }
+    for(int iz = 0; iz < nz; iz++)
+        for(int ix = 0; ix < nx; ix++){
+            unsigned a = iz*(nx+1)+ix;
+            I.insert(I.end(), {a, a+(unsigned)(nx+1), a+1,
+                               a+1, a+(unsigned)(nx+1), a+(unsigned)(nx+1)+1});
+        }
+    return upload(V, I);
+}
+
 // Draw with texture bound (resets uUseTex=0 after use)
 static void drawWithTex(const Mesh& mesh, const mat4& model, const mat4& vp, int surf, GLuint tex){
     glActiveTexture(GL_TEXTURE0);
@@ -720,6 +844,51 @@ static void drawPalmTree(vec3 base, float height, GLuint barkTex, GLuint crownTe
         mat4 m = glm::translate(mat4(1), crown + vec3(0, ch*0.35f, 0));
         m = glm::rotate(m, ang, {0,1,0});
         m = glm::scale(m, {cw, ch, 1.f});
+        drawWithTex(mVQuad, m, vp, 12, crownTex);
+    }
+}
+
+// Short, thick palm tree (low palm) — procedural bark trunk + leafy flaring crown.
+// Trunk uses procedural surface 11 (palm bark rings) — avoids texture-wrapping
+// artefacts on the wider cylinder. Crown uses the standard palm-shrub billboard
+// sprite (texPalmCrown passed in) with radial displacement so every frond keeps
+// its normal pointing upward (stays properly lit by the sun).
+// Two layers: 8 upright primary fronds + 6 drooping outer fronds (bent away).
+static void drawLowPalmTree(vec3 base, float height, GLuint crownTex, const mat4& vp){
+    const float leanRad = 0.05f;
+    {
+        mat4 m = glm::translate(mat4(1), base);
+        m = glm::rotate(m, -leanRad, {0.f, 0.f, 1.f});
+        m = glm::scale(m, {1.f, height, 1.f});
+        draw(mThickCyl, m, vp, 11);   // procedural palm-bark shader — no UV artefacts
+    }
+    vec3 crown = base + vec3(sinf(leanRad)*height, cosf(leanRad)*height, 0.f);
+
+    // ── 8 primary fronds — displaced radially so they flare without tilting ───
+    // Radial displacement keeps normals vertical → correct sun lighting.
+    const float cw1 = height * 0.80f, ch1 = height * 0.60f;
+    const float rad1 = cw1 * 0.30f;   // outward displacement from crown tip
+    for(int k = 0; k < 8; k++){
+        float ang = (float)k * (PI / 4.0f);
+        float ox = sinf(ang) * rad1, oz = cosf(ang) * rad1;
+        mat4 m = glm::translate(mat4(1), crown + vec3(ox, ch1 * 0.35f, oz));
+        m = glm::rotate(m, ang, {0.f, 1.f, 0.f});
+        m = glm::scale(m, {cw1, ch1, 1.f});
+        drawWithTex(mVQuad, m, vp, 12, crownTex);
+    }
+
+    // ── 6 drooping outer fronds — displaced further out + slight downward tilt ─
+    // Small Z-tilt (20°) simulates bend; kept modest so lighting stays decent.
+    const float cw2 = height * 0.75f, ch2 = height * 0.68f;
+    const float rad2 = cw2 * 0.45f;
+    const float droop = glm::radians(20.f);
+    for(int k = 0; k < 6; k++){
+        float ang = (float)k * (2.f * PI / 6.f) + glm::radians(22.5f);
+        float ox = sinf(ang) * rad2, oz = cosf(ang) * rad2;
+        mat4 m = glm::translate(mat4(1), crown + vec3(ox, ch2 * 0.10f, oz));
+        m = glm::rotate(m, ang,   {0.f, 1.f, 0.f});
+        m = glm::rotate(m, droop, {0.f, 0.f, 1.f}); // gentle outward droop
+        m = glm::scale(m, {cw2, ch2, 1.f});
         drawWithTex(mVQuad, m, vp, 12, crownTex);
     }
 }
@@ -808,26 +977,7 @@ static void cbKey(GLFWwindow* w, int key, int, int act, int){
     case GLFW_KEY_ESCAPE: glfwSetWindowShouldClose(w,true); break;
     case GLFW_KEY_O:      cam.ortho = !cam.ortho; break;
     case GLFW_KEY_R:
-        cam.pos={-33,25,55}; cam.yaw=0; cam.pitch=-0.50f; cam.fov=60.f; otherSideView = false; break;
-    case GLFW_KEY_V:
-        if(!otherSideView){
-            savedCamPos    = cam.pos;
-            savedCamYaw    = cam.yaw;
-            savedCamPitch  = cam.pitch;
-            savedDroneView = droneView;
-            droneView      = false;
-            cam.pos = vec3(-cam.pos.x, cam.pos.y, -cam.pos.z);
-            cam.yaw += PI;
-            if(cam.yaw > 2*PI) cam.yaw -= 2*PI;
-            otherSideView = true;
-        } else {
-            cam.pos   = savedCamPos;
-            cam.yaw   = savedCamYaw;
-            cam.pitch = savedCamPitch;
-            otherSideView = false;
-            droneView = savedDroneView;
-        }
-        break;
+        cam.pos={-33,25,55}; cam.yaw=0; cam.pitch=-0.50f; cam.fov=60.f; break;
 
     // ── Toggle drone-cam / external-cam ──
     case GLFW_KEY_F:
@@ -954,21 +1104,188 @@ static void drawTable(vec3 pos, const mat4& vp){
     { mat4 m = glm::translate(mat4(1), pos + vec3(0, 1.18f, 0)); m = glm::scale(m, {1.2f, 0.06f, 0.90f}); draw(mBox, m, vp, 6); }
 }
 
-static void drawRestaurant(const mat4& vp){
+// ── Hole 11 windmill obstacle ─────────────────────────────────────────────────
+// Faces the tee (west). Ball must time entry through the gap (z±0.60 of centre).
+// Blades spin in the ZY-plane around the X axis. Brown shades bottom→top.
+static void drawWindmill(const mat4& vp)
+{
+    // World position of windmill centre
+    const float WM_X  = 24.0f;
+    const float WM_Z  = -25.0f;   // hole centre z
+
+    // ── Base blocks (either side of the gap, spanning hole inner width) ───────
+    // Gap: z in [WM_Z-0.60, WM_Z+0.60] — ball passes through here
+    const float GAP   = 0.60f;
+    const float B_ZN  = -26.72f;   // north inner-wall face (H11_ZN + WTH)
+    const float B_ZS  = -23.28f;   // south inner-wall face
+    const float B_XH  = 1.0f;      // half-depth in x
+    const float B_Y   = 0.50f;     // base block height
+
+    // North base block
+    { float cz = (B_ZN + WM_Z - GAP) * 0.5f;
+      float sz = (WM_Z - GAP) - B_ZN;
+      mat4 m = glm::translate(mat4(1), {WM_X, B_Y * 0.5f, cz});
+      m = glm::scale(m, {B_XH * 2.f, B_Y, sz});
+      draw(mBox, m, vp, 27); }
+
+    // South base block
+    { float cz = (WM_Z + GAP + B_ZS) * 0.5f;
+      float sz = B_ZS - (WM_Z + GAP);
+      mat4 m = glm::translate(mat4(1), {WM_X, B_Y * 0.5f, cz});
+      m = glm::scale(m, {B_XH * 2.f, B_Y, sz});
+      draw(mBox, m, vp, 27); }
+
+    // ── Tapered tower (4 steps, dark → light brown) ───────────────────────────
+    // Each step: centre=(WM_X, y_c, WM_Z), scale=(x_depth, height, z_width)
+    const float ST[][5] = {
+        // x_half, z_half, y0,   y1,  surf
+        { 1.00f, 1.72f, 0.50f, 1.00f, 28 },
+        { 0.85f, 1.45f, 1.00f, 1.50f, 29 },
+        { 0.65f, 1.06f, 1.50f, 2.00f, 29 },
+        { 0.50f, 0.72f, 2.00f, 2.50f, 30 },
+    };
+    for (auto& s : ST) {
+        mat4 m = glm::translate(mat4(1), {WM_X, (s[2]+s[3])*0.5f, WM_Z});
+        m = glm::scale(m, {s[0]*2.f, s[3]-s[2], s[1]*2.f});
+        draw(mBox, m, vp, (int)s[4]);
+    }
+
+    // Roof cap
+    { mat4 m = glm::translate(mat4(1), {WM_X, 2.80f, WM_Z});
+      m = glm::scale(m, {0.70f, 0.60f, 0.80f});
+      draw(mBox, m, vp, 30); }
+
+    // ── Axle — horizontal cylinder pointing west (−X) from tower face ────────
+    // Spans x = [WM_X-1.25 to WM_X-0.65], y=2.0, z=WM_Z
+    { mat4 m = glm::translate(mat4(1), {WM_X - 0.95f, 2.0f, WM_Z});
+      m = glm::rotate(m, 1.5707963f, {0.f, 0.f, 1.f});  // Y-cyl → X-cyl
+      m = glm::scale(m, {0.10f, 0.60f, 0.10f});
+      draw(mCylinder, m, vp, 16); }   // grey pole colour
+
+    // ── Spinning rotor — 4 arms in ZY-plane around X axis ────────────────────
+    // Pivot at (WM_X-1.25, 2.0, WM_Z), spin around X axis
+    const float bD  = 0.08f;    // blade thickness in x
+    const float bW  = 0.32f;    // blade width (perpendicular arm width)
+    const float bL  = 1.72f;    // arm half-span (tip to tip / 2)
+
+    mat4 rotor = glm::translate(mat4(1), {WM_X - 1.25f, 2.0f, WM_Z});
+    rotor = glm::rotate(rotor, windmillAngle, {1.f, 0.f, 0.f});
+
+    // +Y arm
+    { mat4 m = glm::translate(rotor, {0.f, bL * 0.5f + 0.10f, 0.f});
+      m = glm::scale(m, {bD, bL, bW});
+      draw(mBox, m, vp, 6); }
+    // -Y arm
+    { mat4 m = glm::translate(rotor, {0.f, -(bL * 0.5f + 0.10f), 0.f});
+      m = glm::scale(m, {bD, bL, bW});
+      draw(mBox, m, vp, 6); }
+    // +Z arm
+    { mat4 m = glm::translate(rotor, {0.f, 0.f,  bL * 0.5f + 0.10f});
+      m = glm::scale(m, {bD, bW, bL});
+      draw(mBox, m, vp, 6); }
+    // -Z arm
+    { mat4 m = glm::translate(rotor, {0.f, 0.f, -(bL * 0.5f + 0.10f)});
+      m = glm::scale(m, {bD, bW, bL});
+      draw(mBox, m, vp, 6); }
+}
+
+// ── Decorative bridge near east edge, crossing the river ─────────────────────
+// Elevated wooden deck on stilts with post-and-rail fencing and stairs at
+// both ends. Not a playable hole — purely scenic.
+static void renderBridge(const mat4& vp)
+{
+    const float BX_W   = 39.0f;
+    const float BX_E   = 41.0f;
+    const float BX_C   = (BX_W + BX_E) * 0.5f;   // 42.0
+    const float BZ_N   = -26.0f;   // shifted 1 unit south
+    const float BZ_S   = -16.0f;
+    const float BZ_C   = (BZ_N + BZ_S) * 0.5f;   // -20.0
+    const float BZ_LEN = BZ_S - BZ_N;             // 10.0
+    const float BW     = BX_E - BX_W;             //  2.0
+    const float H      = 1.5f;                    // deck elevation
+    const float POST_R = 0.13f;
+    const float STEP_H = 0.30f;
+    const float STEP_D = 0.40f;
+    const int   NSTEPS = 5;                       // 5 × 0.3 = 1.5 = H
+
+    // ── Elevated deck ─────────────────────────────────────────────────────────
+    { mat4 m = glm::translate(mat4(1), {BX_C, H, BZ_C});
+      m = glm::scale(m, {BW, 1.f, BZ_LEN});
+      draw(mQuad, m, vp, 6); }
+
+    // ── Support stilts (barely below ground → deck) ──────────────────────────
+    // mCylinder goes from y=0 to y=1, so translate sets BOTTOM, scale sets HEIGHT
+    const float SINK = 0.1f;   // barely penetrate ground/river
+    auto stilt = [&](float px, float pz) {
+        mat4 m = glm::translate(mat4(1), {px, -SINK, pz});
+        m = glm::scale(m, {POST_R * 2.f, H + SINK, POST_R * 2.f});
+        draw(mCylinder, m, vp, 6);
+    };
+    for (float pz = BZ_N; pz <= BZ_S + 0.01f; pz += 2.5f) {
+        stilt(BX_W, pz);
+        stilt(BX_E, pz);
+    }
+
+    // ── Railing posts (sit on top of deck surface) ───────────────────────────
+    const float RP_H = 0.65f;
+    auto rpost = [&](float px, float pz) {
+        mat4 m = glm::translate(mat4(1), {px, H, pz});   // bottom at deck level
+        m = glm::scale(m, {0.10f, RP_H, 0.10f});
+        draw(mCylinder, m, vp, 6);
+    };
+    for (float pz = BZ_N; pz <= BZ_S + 0.01f; pz += 1.25f) {
+        rpost(BX_W, pz);
+        rpost(BX_E, pz);
+    }
+
+    // ── Horizontal rails — 2 per side ────────────────────────────────────────
+    const float RAIL_T = 0.07f;
+    for (int side = 0; side < 2; side++) {
+        float px = (side == 0) ? BX_W : BX_E;
+        { mat4 m = glm::translate(mat4(1), {px, H + RP_H * 0.30f, BZ_C});
+          m = glm::scale(m, {RAIL_T, RAIL_T, BZ_LEN});
+          draw(mBox, m, vp, 6); }
+        { mat4 m = glm::translate(mat4(1), {px, H + RP_H * 0.85f, BZ_C});
+          m = glm::scale(m, {RAIL_T, RAIL_T, BZ_LEN});
+          draw(mBox, m, vp, 6); }
+    }
+
+    // ── South stairs — lowest step farthest from bridge, highest adjacent to deck
+    // (approach from south: first step low, last step at deck height)
+    for (int s = 0; s < NSTEPS; s++) {
+        float zc = BZ_S + (NSTEPS - s - 0.5f) * STEP_D;  // s=0 farthest, s=4 closest
+        float h  = (s + 1) * STEP_H;                       // s=0 lowest, s=4 tallest
+        mat4 m = glm::translate(mat4(1), {BX_C, h * 0.5f, zc});
+        m = glm::scale(m, {BW, h, STEP_D});
+        draw(mBox, m, vp, 6);
+    }
+
+    // ── North stairs — facing away from south stairs (lowest at far north end)
+    for (int s = 0; s < NSTEPS; s++) {
+        float zc = BZ_N - (NSTEPS - s - 0.5f) * STEP_D;  // s=0 farthest north, s=4 closest
+        float h  = (s + 1) * STEP_H;
+        mat4 m = glm::translate(mat4(1), {BX_C, h * 0.5f, zc});
+        m = glm::scale(m, {BW, h, STEP_D});
+        draw(mBox, m, vp, 6);
+    }
+}
+
+static void drawRestaurant(const mat4& vp, float yOff = 0.f){
     float cx = 0.f, cz = 0.f;
     float bw = 10.f, bd = 8.f, bh = 3.5f;
 
-    { mat4 m = glm::translate(mat4(1), {cx, 0.01f, cz}); m = glm::scale(m, {bw, 1, bd}); draw(mQuad, m, vp, 9); }
+    // Floor
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+0.01f, cz}); m = glm::scale(m, {bw, 1, bd}); draw(mQuad, m, vp, 9); }
 
-    { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz-bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
-    { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz+bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
-    { mat4 m = glm::translate(mat4(1), {cx-bw*.5f, bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
-    { mat4 m = glm::translate(mat4(1), {cx+bw*.5f, bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
+    // Walls
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh*.5f, cz-bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh*.5f, cz+bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
+    { mat4 m = glm::translate(mat4(1), {cx-bw*.5f, yOff+bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
+    { mat4 m = glm::translate(mat4(1), {cx+bw*.5f, yOff+bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
 
     auto windowFrontBack = [&](float x, float z, float dir){
-        float y = bh * 0.6f;
+        float y = yOff + bh * 0.6f;
         float off = 0.08f * dir;
-
         { mat4 m = glm::translate(mat4(1), {x, y, z}); m = glm::scale(m, {1.5f, 1.2f, 0.05f}); draw(mBox, m, vp, 15); }
         { mat4 m = glm::translate(mat4(1), {x, y+0.65f, z+off}); m = glm::scale(m, {1.8f, 0.12f, 0.10f}); draw(mBox, m, vp, 13); }
         { mat4 m = glm::translate(mat4(1), {x, y-0.65f, z+off}); m = glm::scale(m, {1.8f, 0.12f, 0.10f}); draw(mBox, m, vp, 13); }
@@ -979,9 +1296,8 @@ static void drawRestaurant(const mat4& vp){
     };
 
     auto windowSides = [&](float x, float z, float dir){
-        float y = bh * 0.6f;
+        float y = yOff + bh * 0.6f;
         float off = 0.08f * dir;
-
         { mat4 m = glm::translate(mat4(1), {x, y, z}); m = glm::scale(m, {0.05f, 1.2f, 1.5f}); draw(mBox, m, vp, 15); }
         { mat4 m = glm::translate(mat4(1), {x+off, y+0.65f, z}); m = glm::scale(m, {0.10f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
         { mat4 m = glm::translate(mat4(1), {x+off, y-0.65f, z}); m = glm::scale(m, {0.10f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
@@ -991,122 +1307,87 @@ static void drawRestaurant(const mat4& vp){
         { mat4 m = glm::translate(mat4(1), {x+off, y, z}); m = glm::scale(m, {0.12f, 0.12f, 1.6f}); draw(mBox, m, vp, 13); }
     };
 
-    windowFrontBack(cx-2.8f, cz+bd*0.5f+0.16f, 1.f);
-    windowFrontBack(cx+2.8f, cz+bd*0.5f+0.16f, 1.f);
+    windowFrontBack(cx-2.8f, cz+bd*0.5f+0.16f,  1.f);
+    windowFrontBack(cx+2.8f, cz+bd*0.5f+0.16f,  1.f);
     windowFrontBack(cx-2.8f, cz-bd*0.5f-0.16f, -1.f);
     windowFrontBack(cx+2.8f, cz-bd*0.5f-0.16f, -1.f);
 
     windowSides(cx-bw*0.5f-0.16f, cz-2.f, -1.f);
     windowSides(cx-bw*0.5f-0.16f, cz+2.f, -1.f);
-    windowSides(cx+bw*0.5f+0.16f, cz-2.f, 1.f);
-    windowSides(cx+bw*0.5f+0.16f, cz+2.f, 1.f);
+    windowSides(cx+bw*0.5f+0.16f, cz-2.f,  1.f);
+    windowSides(cx+bw*0.5f+0.16f, cz+2.f,  1.f);
 
-    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
-    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
+    // Double doors (south and north faces)
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+1.35f, cz+bd*0.5f+0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+1.35f, cz+bd*0.5f+0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+1.35f, cz-bd*0.5f-0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+1.35f, cz-bd*0.5f-0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
 
-    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
-    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
-
-    float roofY = bh + 0.15f;
+    float roofY = yOff + bh + 0.15f;
     float roofW = bw + 1.8f;
     float roofD = bd + 1.8f;
     float roofH = 2.0f;
 
-    {
-        mat4 m = glm::translate(mat4(1), {cx, bh + 0.03f, cz});
-        m = glm::scale(m, {roofW, 0.18f, roofD});
-        draw(mBox, m, vp, 6);
-    }
+    // Eave base
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+0.03f, cz}); m = glm::scale(m, {roofW, 0.18f, roofD}); draw(mBox, m, vp, 6); }
 
-    {
-        mat4 m = glm::translate(mat4(1), {cx - roofW * 0.255f, roofY + roofH * 0.36f, cz});
-        m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
-        m = glm::scale(m, {roofW * 0.60f, 0.22f, roofD});
-        draw(mBox, m, vp, 6);
-    }
+    // Left slope panel
+    { mat4 m = glm::translate(mat4(1), {cx - roofW*0.255f, roofY + roofH*0.36f, cz});
+      m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
+      m = glm::scale(m, {roofW*0.60f, 0.22f, roofD}); draw(mBox, m, vp, 6); }
 
-    {
-        mat4 m = glm::translate(mat4(1), {cx + roofW * 0.255f, roofY + roofH * 0.36f, cz});
-        m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
-        m = glm::scale(m, {roofW * 0.60f, 0.22f, roofD});
-        draw(mBox, m, vp, 6);
-    }
+    // Right slope panel
+    { mat4 m = glm::translate(mat4(1), {cx + roofW*0.255f, roofY + roofH*0.36f, cz});
+      m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
+      m = glm::scale(m, {roofW*0.60f, 0.22f, roofD}); draw(mBox, m, vp, 6); }
 
+    // Battens
     for(int i = -5; i <= 5; ++i){
         float z = cz + i * (roofD / 11.0f);
-
-        mat4 m1 = glm::translate(mat4(1), {cx - roofW * 0.255f, roofY + roofH * 0.48f, z});
-        m1 = glm::rotate(m1, glm::radians(28.0f), vec3(0, 0, 1));
-        m1 = glm::scale(m1, {roofW * 0.58f, 0.045f, 0.045f});
-        draw(mBox, m1, vp, 7);
-
-        mat4 m2 = glm::translate(mat4(1), {cx + roofW * 0.255f, roofY + roofH * 0.48f, z});
-        m2 = glm::rotate(m2, glm::radians(-28.0f), vec3(0, 0, 1));
-        m2 = glm::scale(m2, {roofW * 0.58f, 0.045f, 0.045f});
-        draw(mBox, m2, vp, 7);
+        { mat4 m = glm::translate(mat4(1), {cx - roofW*0.255f, roofY + roofH*0.48f, z});
+          m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
+          m = glm::scale(m, {roofW*0.58f, 0.045f, 0.045f}); draw(mBox, m, vp, 7); }
+        { mat4 m = glm::translate(mat4(1), {cx + roofW*0.255f, roofY + roofH*0.48f, z});
+          m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
+          m = glm::scale(m, {roofW*0.58f, 0.045f, 0.045f}); draw(mBox, m, vp, 7); }
     }
 
-    {
-        mat4 m = glm::translate(mat4(1), {cx, roofY + roofH * 0.78f, cz});
-        m = glm::scale(m, {0.32f, 0.32f, roofD + 0.35f});
-        draw(mBox, m, vp, 7);
-    }
+    // Ridge beam
+    { mat4 m = glm::translate(mat4(1), {cx, roofY + roofH*0.78f, cz});
+      m = glm::scale(m, {0.32f, 0.32f, roofD+0.35f}); draw(mBox, m, vp, 7); }
 
-    {
-        mat4 m = glm::translate(mat4(1), {cx - 1.55f, bh + 0.75f, cz + roofD * 0.505f});
-        m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
-        m = glm::scale(m, {3.6f, 0.12f, 0.16f});
-        draw(mBox, m, vp, 7);
-    }
-    {
-        mat4 m = glm::translate(mat4(1), {cx + 1.55f, bh + 0.75f, cz + roofD * 0.505f});
-        m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
-        m = glm::scale(m, {3.6f, 0.12f, 0.16f});
-        draw(mBox, m, vp, 7);
-    }
+    // Gable end pieces (front)
+    { mat4 m = glm::translate(mat4(1), {cx - 1.55f, yOff+bh+0.75f, cz + roofD*0.505f});
+      m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
+      m = glm::scale(m, {3.6f, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
+    { mat4 m = glm::translate(mat4(1), {cx + 1.55f, yOff+bh+0.75f, cz + roofD*0.505f});
+      m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
+      m = glm::scale(m, {3.6f, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
 
-    {
-        mat4 m = glm::translate(mat4(1), {cx - 1.55f, bh + 0.75f, cz - roofD * 0.505f});
-        m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
-        m = glm::scale(m, {3.6f, 0.12f, 0.16f});
-        draw(mBox, m, vp, 7);
-    }
-    {
-        mat4 m = glm::translate(mat4(1), {cx + 1.55f, bh + 0.75f, cz - roofD * 0.505f});
-        m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
-        m = glm::scale(m, {3.6f, 0.12f, 0.16f});
-        draw(mBox, m, vp, 7);
-    }
+    // Gable end pieces (back)
+    { mat4 m = glm::translate(mat4(1), {cx - 1.55f, yOff+bh+0.75f, cz - roofD*0.505f});
+      m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
+      m = glm::scale(m, {3.6f, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
+    { mat4 m = glm::translate(mat4(1), {cx + 1.55f, yOff+bh+0.75f, cz - roofD*0.505f});
+      m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
+      m = glm::scale(m, {3.6f, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
 
-    {
-        mat4 m = glm::translate(mat4(1), {cx, bh + 3.15f, cz + 0.16f});
-        m = glm::scale(m, {5.0f, 1.35f, 0.12f});
-        drawWithTex(mBox, m, vp, 15, texGolfSign);
-    }
+    // Sign board (front and back) — surf 34 cream/ivory
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+3.15f, cz + 0.16f});
+      m = glm::scale(m, {5.0f, 1.35f, 0.12f}); draw(mBox, m, vp, 34); }
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+3.15f, cz - 0.16f});
+      m = glm::scale(m, {5.0f, 1.35f, 0.12f}); draw(mBox, m, vp, 34); }
 
-    {
-        mat4 m = glm::translate(mat4(1), {cx, bh + 3.15f, cz - 0.16f});
-        m = glm::scale(m, {5.0f, 1.35f, 0.12f});
-        drawWithTex(mBox, m, vp, 15, texGolfSign);
-    }
-
-    {
-        mat4 m = glm::translate(mat4(1), {cx - 2.0f, bh + 2.2f, cz});
-        m = glm::scale(m, {0.11f, 2.2f, 0.11f});
-        draw(mBox, m, vp, 13);
-    }
-    {
-        mat4 m = glm::translate(mat4(1), {cx + 2.0f, bh + 2.2f, cz});
-        m = glm::scale(m, {0.11f, 2.2f, 0.11f});
-        draw(mBox, m, vp, 13);
-    }
-
-    
+    // Sign posts
+    { mat4 m = glm::translate(mat4(1), {cx - 2.0f, yOff+bh+2.2f, cz});
+      m = glm::scale(m, {0.11f, 2.2f, 0.11f}); draw(mBox, m, vp, 13); }
+    { mat4 m = glm::translate(mat4(1), {cx + 2.0f, yOff+bh+2.2f, cz});
+      m = glm::scale(m, {0.11f, 2.2f, 0.11f}); draw(mBox, m, vp, 13); }
 }
 
 static Mesh makeSkyboxMesh(){
     float v[]={
-       -1, 1,-1,-1,-1,-1, 1,-1,-1, 1,-1,-1, 1, 1,-1,-1, 1,-1
+       -1, 1,-1,-1,-1,-1, 1,-1,-1, 1,-1,-1, 1, 1,-1,-1, 1,-1,
        -1,-1, 1,-1,-1,-1,-1, 1,-1,-1, 1,-1,-1, 1, 1,-1,-1, 1,
         1,-1,-1, 1,-1, 1, 1, 1, 1, 1, 1, 1, 1, 1,-1, 1,-1,-1,
        -1,-1, 1,-1, 1, 1, 1, 1, 1, 1, 1, 1, 1,-1, 1,-1,-1, 1,
@@ -1153,7 +1434,6 @@ int main(){
     gProg   = LoadShaders("golf_vert.glsl","golf_frag.glsl");
     skyProg = LoadShaders("sky_vert.glsl", "sky_frag.glsl");
     skyTex  = loadTexture("day_sky.png");
-    texGolfSign = loadTexture("textures/restaurants/image.png");
 
     mQuad     = makeQuad();
     mBox      = makeBox();
@@ -1164,9 +1444,13 @@ int main(){
     mCircle   = makeCircle();
     mSkybox  = makeSkyboxMesh();
     mVQuad        = makeVQuad();
+    mLeafVQuad    = makeLeafVQuad();
     mRockyBoulder = makeRockyBoulder();
     mTerrainHills = makeHillTerrain(33.f, 38.f, 16.f, 14.f, 32, 28);
-    mTaperedCyl   = makeTaperedCylinder(0.18f, 0.10f, 18);
+    mTaperedCyl        = makeTaperedCylinder(0.18f, 0.10f, 18);
+    mThickCyl          = makeTaperedCylinder(0.32f, 0.18f, 18);
+    mRestaurantPlateau = makeRestaurantPlateau();
+    mTerrainWest       = makeWestHillTerrain();
 
     // ── River + pond meshes ───────────────────────────────────────────────────
     {
@@ -1208,7 +1492,7 @@ int main(){
     const char* crownPaths[3]={
         "textures/tropical/t_palm_shrub1/palms1.png",
         "textures/tropical/t_palm_shrub2/palms2.png",
-        "textures/tropical/t_palm_shrub4/palms4.png",
+        "textures/tropical/t_palm_shrub3/palms3.png",
     };
     for(int i=0; i<3; i++) texPalmCrown[i] = loadTexture(crownPaths[i]);
     const char* weedPaths[3]={
@@ -1223,6 +1507,9 @@ int main(){
     };
     for(int i=0; i<2; i++) texShrub[i] = loadTexture(shrubPaths[i]);
     texConcrete = loadTexture("textures/rocks/floor1.bmp");
+    texAgave        = loadTexture("textures/tropical/t_agave1/agava1.png");
+    texFlax         = loadTexture("textures/tropical/t_flax1_green/flax1g.png");
+    texLowPalmCrown = loadTexture("textures/tropical/t_lowpalm1/lpalm1.png");
 
     gHoles[1]  = new Hole1(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[2]  = new Hole2(&mQuad, &mBox, &mCylinder, &mTorus, &mSphere);
@@ -1236,7 +1523,6 @@ int main(){
     gHoles[10] = new Hole10(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[11] = new Hole11(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[12] = new Hole12(&mQuad, &mBox, &mCylinder, &mTorus);
-    gHoles[13] = new Hole13(&mQuad, &mBox, &mCylinder, &mTorus);
 
     double prev = glfwGetTime();
 
@@ -1250,6 +1536,9 @@ int main(){
 
         // Propeller spin
         propAngle = fmodf(propAngle + dt * 18.f, 2*PI);
+
+        // Hole 11 windmill rotor
+        windmillAngle = fmodf(windmillAngle + dt * 1.8f, 2*PI);
 
         // Ball update
         ball.update(dt);
@@ -1274,7 +1563,7 @@ int main(){
             ball.moving = false;
             printf("Hole %d: %d stroke%s\n",
                    gCurrentHole, ball.strokes, ball.strokes==1?"":"s");
-            if(gCurrentHole < 13){
+            if(gCurrentHole < 12){
                 gCurrentHole++;
                 ball.pos = gHoles[gCurrentHole] ? gHoles[gCurrentHole]->getTeePos()
                                                 : vec3(0.f, BALL_R, 0.f);
@@ -1346,66 +1635,67 @@ int main(){
 
         draw(mTrap, mat4(1), vp, 2);
 
-        for(int i = 1; i <= 13; i++)
+        for(int i = 1; i <= 12; i++)
             if(gHoles[i]) gHoles[i]->render(vp);
 
-        drawRestaurant(vp);
+        drawWindmill(vp);
+        renderBridge(vp);
 
-        // Concrete slabs surrounding restaurant (bw=10, bd=8 → walls at x=±5, z=±4)
-        // Front slab: z=4..8 (depth 4) to fully contain front seating
-        { mat4 m=glm::translate(mat4(1),{0.f,0.005f, 6.f}); m=glm::scale(m,{16.f,1.f,4.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
+        // Restaurant plateau — gradual slope rising to PLAT_H around restaurant area
+        draw(mRestaurantPlateau, mat4(1), vp, 2);
+
+        drawRestaurant(vp, PLAT_H);
+
+        // Concrete slabs on the plateau top (bw=10, bd=8 → walls at x=±5, z=±4)
+        const float sy = PLAT_H + 0.005f;  // slab y: just above plateau top
+        // Front slab: z=4..8
+        { mat4 m=glm::translate(mat4(1),{0.f,sy, 6.f}); m=glm::scale(m,{16.f,1.f,4.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
         // Back slab: z=-4..-7
-        { mat4 m=glm::translate(mat4(1),{0.f,0.005f,-5.5f}); m=glm::scale(m,{16.f,1.f,3.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
+        { mat4 m=glm::translate(mat4(1),{0.f,sy,-5.5f}); m=glm::scale(m,{16.f,1.f,3.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
         // Left slab: x=-5..-8
-        { mat4 m=glm::translate(mat4(1),{-6.5f,0.005f,0.f}); m=glm::scale(m,{3.f,1.f, 8.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
-        // Right slab: x=5..9 (width 4 to contain right seating)
-        { mat4 m=glm::translate(mat4(1),{ 7.f,  0.005f,0.f}); m=glm::scale(m,{4.f,1.f, 8.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
+        { mat4 m=glm::translate(mat4(1),{-6.5f,sy,0.f}); m=glm::scale(m,{3.f,1.f, 8.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
+        // Right slab: x=5..9
+        { mat4 m=glm::translate(mat4(1),{ 7.f, sy,0.f}); m=glm::scale(m,{4.f,1.f, 8.f}); drawWithTex(mQuad,m,vp,8,texConcrete); }
 
-        // ── Seating area ────────────────────────────────────────────────────────
-        // Front patio: 2 tables at z=6.0 (centred on front slab z=4..8)
-        // Chair rot: left of table → +PI/2 (face +X), right → -PI/2 (face -X),
-        //            front (z-) → 0 (face +Z), back (z+) → PI (face -Z)
-        drawTable({-3.5f, 0.f, 6.0f}, vp);
-        drawChair({-4.5f, 0.f, 6.0f},  1.57f, vp);   // left of table → face +X
-        drawChair({-2.5f, 0.f, 6.0f}, -1.57f, vp);   // right of table → face -X
-        drawChair({-3.5f, 0.f, 7.0f},  3.14f, vp);   // behind table → face -Z
-        drawChair({-3.5f, 0.f, 5.0f},  0.0f,  vp);   // in front → face +Z
+        // ── Seating area (all on plateau top) ───────────────────────────────────
+        const float ty = PLAT_H;
+        drawTable({-3.5f, ty, 6.0f}, vp);
+        drawChair({-4.5f, ty, 6.0f},  1.57f, vp);
+        drawChair({-2.5f, ty, 6.0f}, -1.57f, vp);
+        drawChair({-3.5f, ty, 7.0f},  3.14f, vp);
+        drawChair({-3.5f, ty, 5.0f},  0.0f,  vp);
 
-        drawTable({ 3.5f, 0.f, 6.0f}, vp);
-        drawChair({ 2.5f, 0.f, 6.0f},  1.57f, vp);
-        drawChair({ 4.5f, 0.f, 6.0f}, -1.57f, vp);
-        drawChair({ 3.5f, 0.f, 7.0f},  3.14f, vp);
-        drawChair({ 3.5f, 0.f, 5.0f},  0.0f,  vp);
+        drawTable({ 3.5f, ty, 6.0f}, vp);
+        drawChair({ 2.5f, ty, 6.0f},  1.57f, vp);
+        drawChair({ 4.5f, ty, 6.0f}, -1.57f, vp);
+        drawChair({ 3.5f, ty, 7.0f},  3.14f, vp);
+        drawChair({ 3.5f, ty, 5.0f},  0.0f,  vp);
 
-        // Right-side patio: 1 table at (7.5, 0, 1.5) — on right slab x=5..9
-        drawTable({7.5f, 0.f, 1.5f}, vp);
-        drawChair({6.5f, 0.f, 1.5f},  1.57f, vp);
-        drawChair({8.5f, 0.f, 1.5f}, -1.57f, vp);
-        drawChair({7.5f, 0.f, 2.5f},  3.14f, vp);
-        drawChair({7.5f, 0.f, 0.5f},  0.0f,  vp);
+        drawTable({7.5f, ty, 1.5f}, vp);
+        drawChair({6.5f, ty, 1.5f},  1.57f, vp);
+        drawChair({8.5f, ty, 1.5f}, -1.57f, vp);
+        drawChair({7.5f, ty, 2.5f},  3.14f, vp);
+        drawChair({7.5f, ty, 0.5f},  0.0f,  vp);
 
-        // ── Corner gardens: dirt patch + small boulder + plant(s) ──────────────
-        // Front-left corner of front slab
-        { mat4 m=glm::translate(mat4(1),{-6.5f,0.02f, 7.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
-        drawBoulder({-6.5f, 0.4f*0.35f, 7.5f}, 0.40f, texRock[2], vp);
-        drawBillboard({-6.8f, 0.f, 7.2f}, 0.65f, 1.0f, texWeed[0], vp);
-        drawBillboard({-6.2f, 0.f, 7.8f}, 0.55f, 0.85f, texWeed[1], vp);
+        // ── Corner gardens on plateau top ────────────────────────────────────────
+        const float gy = ty + 0.02f;
+        { mat4 m=glm::translate(mat4(1),{-6.5f,gy, 7.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
+        drawBoulder({-6.5f, ty+0.4f*0.35f, 7.5f}, 0.40f, texRock[2], vp);
+        drawBillboard({-6.8f, ty, 7.2f}, 0.65f, 1.0f, texWeed[0], vp);
+        drawBillboard({-6.2f, ty, 7.8f}, 0.55f, 0.85f, texWeed[1], vp);
 
-        // Front-right corner of front slab
-        { mat4 m=glm::translate(mat4(1),{ 6.5f,0.02f, 7.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
-        drawBoulder({ 6.5f, 0.35f*0.35f, 7.5f}, 0.35f, texRock[3], vp);
-        drawBillboard({ 6.2f, 0.f, 7.2f}, 0.60f, 0.90f, texWeed[0], vp);
+        { mat4 m=glm::translate(mat4(1),{ 6.5f,gy, 7.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
+        drawBoulder({ 6.5f, ty+0.35f*0.35f, 7.5f}, 0.35f, texRock[3], vp);
+        drawBillboard({ 6.2f, ty, 7.2f}, 0.60f, 0.90f, texWeed[0], vp);
 
-        // Right-slab front corner
-        { mat4 m=glm::translate(mat4(1),{ 8.5f,0.02f, 3.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
-        drawBoulder({ 8.5f, 0.45f*0.35f, 3.5f}, 0.45f, texRock[4], vp);
-        drawBillboard({ 8.8f, 0.f, 3.2f}, 0.60f, 0.95f, texWeed[1], vp);
-        drawBillboard({ 8.2f, 0.f, 3.8f}, 0.50f, 0.80f, texWeed[0], vp);
+        { mat4 m=glm::translate(mat4(1),{ 8.5f,gy, 3.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
+        drawBoulder({ 8.5f, ty+0.45f*0.35f, 3.5f}, 0.45f, texRock[4], vp);
+        drawBillboard({ 8.8f, ty, 3.2f}, 0.60f, 0.95f, texWeed[1], vp);
+        drawBillboard({ 8.2f, ty, 3.8f}, 0.50f, 0.80f, texWeed[0], vp);
 
-        // Right-slab back corner
-        { mat4 m=glm::translate(mat4(1),{ 8.5f,0.02f,-3.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
-        drawBoulder({ 8.5f, 0.38f*0.35f,-3.5f}, 0.38f, texRock[5], vp);
-        drawBillboard({ 8.8f, 0.f,-3.8f}, 0.55f, 0.85f, texWeed[1], vp);
+        { mat4 m=glm::translate(mat4(1),{ 8.5f,gy,-3.5f}); m=glm::scale(m,{1.6f,1.f,1.6f}); draw(mQuad,m,vp,23); }
+        drawBoulder({ 8.5f, ty+0.38f*0.35f,-3.5f}, 0.38f, texRock[5], vp);
+        drawBillboard({ 8.8f, ty,-3.8f}, 0.55f, 0.85f, texWeed[1], vp);
 
         // Lamp posts
         for(int i = 0; i < LAMP_COUNT; i++)
@@ -1414,13 +1704,17 @@ int main(){
         // Pond island — drawn before water so depth test blocks water over the island
         { mat4 m = glm::translate(mat4(1), {14.f, -0.3f, 16.f});
           m = glm::scale(m, {3.5f, 0.85f, 3.5f});
-          draw(mSphere, m, vp, 4); }  // sand/gravel dome; island top ≈ y=0.55
+          draw(mSphere, m, vp, 26); }  // dark earth dome; island top ≈ y=0.55
 
         // River + pond (drawn after island so water fills around the dome)
         draw(mRiverBank, mat4(1), vp, 23);  // dirt/soil banks
         draw(mRiver,     mat4(1), vp,  5);  // animated water
 
         // Island vegetation — boulders, palm and plants grouped on the small hill
+        // Two large feature boulders on the island slopes
+        drawBoulder({13.0f, 0.35f, 14.5f}, 0.70f, texRock[2], vp);
+        drawBoulder({15.5f, 0.30f, 17.5f}, 0.65f, texRock[5], vp);
+        // Small rocks
         drawBoulder({15.8f, 0.45f, 15.2f}, 0.30f, texRock[1], vp);
         drawBoulder({12.5f, 0.38f, 17.2f}, 0.25f, texRock[3], vp);
         drawPalmTree({14.f,  0.52f, 16.5f}, 4.5f, texBark, texPalmCrown[0], vp);
@@ -1428,6 +1722,155 @@ int main(){
         drawBillboard({12.8f, 0.28f, 17.5f}, 0.40f, 0.65f, texWeed[2], vp);
         drawBillboard({14.8f, 0.30f, 14.3f}, 0.50f, 0.70f, texWeed[1], vp);
         drawBillboard({13.5f, 0.38f, 17.9f}, 1.0f,  1.3f,  texShrub[0], vp);
+        drawBillboard({14.5f, 0.42f, 14.8f}, 0.42f, 0.68f, texWeed[2], vp);
+        drawBillboard({12.9f, 0.28f, 15.8f}, 0.38f, 0.60f, texWeed[0], vp);
+        drawBillboard({15.1f, 0.32f, 16.9f}, 0.85f, 1.10f, texShrub[1], vp);
+
+        // Large boulder marking where the plateau slope meets the river bank
+        drawBoulder({12.5f, 0.30f, 4.5f}, 1.3f, texRock[6], vp);
+
+        // ── River bank vegetation ─────────────────────────────────────────────
+        // Positions pre-computed from perpendicular geometry at each river segment.
+        // NE entry section (z=-18..-4)
+        drawBoulder({35.0f,0.25f,-15.5f},0.50f,texRock[1],vp);
+        drawBillboard({34.2f,0.f,-14.5f},0.9f,1.2f,texAgave,vp);
+        drawBoulder({31.5f,0.22f,-17.5f},0.40f,texRock[3],vp);
+        drawBillboard({30.5f,0.f,-16.5f},0.8f,1.3f,texFlax,vp);
+        drawBoulder({27.0f,0.20f, -5.5f},0.45f,texRock[2],vp);
+        drawBillboard({26.5f,0.f, -4.5f},1.0f,1.1f,texAgave,vp);
+        drawBoulder({24.5f,0.22f,-11.0f},0.38f,texRock[4],vp);
+        drawBillboard({23.8f,0.f,-10.0f},0.85f,1.2f,texFlax,vp);
+        // Restaurant-side section (z=-4..10)
+        drawBoulder({21.8f,0.20f,  1.5f},0.42f,texRock[5],vp);
+        drawBillboard({21.0f,0.f,  2.5f},1.0f,1.3f,texAgave,vp);
+        drawBoulder({17.5f,0.18f, -3.0f},0.35f,texRock[6],vp);
+        drawBillboard({16.8f,0.f, -2.0f},0.9f,1.2f,texFlax,vp);
+        drawBoulder({19.0f,0.20f,  7.8f},0.40f,texRock[0],vp);
+        drawBillboard({19.8f,0.f,  8.8f},1.1f,1.4f,texAgave,vp);
+        drawBoulder({13.5f,0.18f,  5.3f},0.38f,texRock[7],vp);
+        drawBillboard({12.8f,0.f,  6.0f},0.8f,1.1f,texFlax,vp);
+        // Pond area — north and south banks only (east bank near island already has vegetation)
+        drawBoulder({20.4f,0.22f, 11.1f},0.50f,texRock[2],vp);
+        drawBillboard({21.2f,0.f, 12.0f},1.0f,1.3f,texAgave,vp);
+        drawBoulder({17.8f,0.20f, 24.3f},0.48f,texRock[4],vp);
+        drawBillboard({18.5f,0.f, 25.3f},1.1f,1.2f,texFlax,vp);
+        // South of pond section (z=23..37)
+        drawBoulder({13.9f,0.22f, 27.8f},0.42f,texRock[1],vp);
+        drawBillboard({14.7f,0.f, 28.8f},0.9f,1.3f,texAgave,vp);
+        drawBoulder({ 8.2f,0.20f, 26.2f},0.38f,texRock[5],vp);
+        drawBillboard({ 7.5f,0.f, 25.5f},0.85f,1.1f,texFlax,vp);
+        drawBoulder({ 8.2f,0.22f, 32.6f},0.45f,texRock[3],vp);
+        drawBillboard({ 8.9f,0.f, 33.5f},1.0f,1.2f,texAgave,vp);
+        drawBoulder({ 2.8f,0.20f, 32.7f},0.40f,texRock[6],vp);
+        drawBillboard({ 2.0f,0.f, 31.8f},0.9f,1.3f,texFlax,vp);
+        // SW exit bend (z=37..51)
+        drawBoulder({ 1.0f,0.22f, 40.7f},0.50f,texRock[0],vp);
+        drawBillboard({ 0.0f,0.f, 41.5f},1.1f,1.2f,texAgave,vp);
+        drawBoulder({-3.9f,0.20f, 37.3f},0.40f,texRock[2],vp);
+        drawBillboard({-4.5f,0.f, 36.5f},0.85f,1.1f,texFlax,vp);
+        drawBoulder({-5.4f,0.22f, 44.1f},0.45f,texRock[4],vp);
+        drawBillboard({-4.6f,0.f, 45.0f},1.0f,1.3f,texAgave,vp);
+        drawBoulder({-6.7f,0.20f, 37.9f},0.38f,texRock[7],vp);
+        drawBillboard({-7.5f,0.f, 37.2f},0.9f,1.2f,texFlax,vp);
+        drawBoulder({-9.7f,0.22f, 47.3f},0.42f,texRock[1],vp);
+        drawBillboard({-8.8f,0.f, 48.1f},1.0f,1.3f,texAgave,vp);
+        drawBoulder({-12.3f,0.20f,40.7f},0.40f,texRock[3],vp);
+        drawBillboard({-13.0f,0.f,41.5f},0.85f,1.2f,texFlax,vp);
+        drawBoulder({-18.1f,0.22f,49.9f},0.50f,texRock[5],vp);
+        drawBillboard({-17.3f,0.f,50.7f},1.1f,1.3f,texAgave,vp);
+        drawBoulder({-19.9f,0.20f,44.1f},0.38f,texRock[0],vp);
+        drawBillboard({-20.7f,0.f,43.3f},0.9f,1.1f,texFlax,vp);
+        drawBoulder({-26.4f,0.22f,46.7f},0.45f,texRock[6],vp);
+        drawBillboard({-27.2f,0.f,45.8f},1.0f,1.3f,texAgave,vp);
+        drawBoulder({-27.3f,0.20f,51.9f},0.42f,texRock[2],vp);
+        drawBillboard({-26.5f,0.f,52.5f},0.9f,1.2f,texFlax,vp);
+        drawBoulder({-29.1f,0.22f,48.6f},0.38f,texRock[4],vp);
+        drawBillboard({-34.9f,0.f,48.6f},0.85f,1.1f,texAgave,vp);
+        drawBoulder({-34.9f,0.20f,51.9f},0.42f,texRock[7],vp);
+        drawBillboard({-29.0f,0.f,49.5f},1.0f,1.3f,texFlax,vp);
+
+        // ── West-edge hill banks ──────────────────────────────────────────────
+        draw(mTerrainWest, mat4(1), vp, 2);
+
+        // Boulders at each hill peak and nearby secondary positions
+        drawBoulder({-44.f,terrainHW(-44.f,-38.f)+1.8f*0.35f,-38.f},1.8f,texRock[0],vp);
+        drawBoulder({-46.f,terrainHW(-46.f,-36.f)+1.4f*0.35f,-36.f},1.4f,texRock[2],vp);
+        drawBoulder({-43.f,terrainHW(-43.f,-40.f)+1.1f*0.35f,-40.f},1.1f,texRock[5],vp);
+        drawBoulder({-45.f,terrainHW(-45.f,-24.f)+1.5f*0.35f,-24.f},1.5f,texRock[1],vp);
+        drawBoulder({-43.f,terrainHW(-43.f,-22.f)+1.0f*0.35f,-22.f},1.0f,texRock[4],vp);
+        drawBoulder({-44.f,terrainHW(-44.f, -9.f)+1.7f*0.35f, -9.f},1.7f,texRock[3],vp);
+        drawBoulder({-46.f,terrainHW(-46.f,-11.f)+1.2f*0.35f,-11.f},1.2f,texRock[6],vp);
+        drawBoulder({-45.f,terrainHW(-45.f,  6.f)+1.4f*0.35f,  6.f},1.4f,texRock[2],vp);
+        drawBoulder({-43.f,terrainHW(-43.f,  4.f)+1.0f*0.35f,  4.f},1.0f,texRock[7],vp);
+        drawBoulder({-44.f,terrainHW(-44.f, 19.f)+1.6f*0.35f, 19.f},1.6f,texRock[0],vp);
+        drawBoulder({-46.f,terrainHW(-46.f, 21.f)+1.1f*0.35f, 21.f},1.1f,texRock[5],vp);
+        drawBoulder({-45.f,terrainHW(-45.f, 31.f)+1.5f*0.35f, 31.f},1.5f,texRock[1],vp);
+        drawBoulder({-43.f,terrainHW(-43.f, 29.f)+1.0f*0.35f, 29.f},1.0f,texRock[3],vp);
+        drawBoulder({-44.f,terrainHW(-44.f, 40.f)+1.8f*0.35f, 40.f},1.8f,texRock[4],vp);
+        drawBoulder({-46.f,terrainHW(-46.f, 38.f)+1.3f*0.35f, 38.f},1.3f,texRock[6],vp);
+
+        // Palm trees beside (not on top of) the boulders — offset 2-3 units in x and z
+        drawPalmTree({-42.f,terrainHW(-42.f,-36.f),-36.f},6.0f,texBark,texPalmCrown[0],vp);
+        drawPalmTree({-43.f,terrainHW(-43.f,-11.f),-11.f},5.5f,texBark,texPalmCrown[0],vp);
+        drawPalmTree({-42.f,terrainHW(-42.f, 21.f), 21.f},6.5f,texBark,texPalmCrown[0],vp);
+        drawPalmTree({-42.f,terrainHW(-42.f, 36.f), 36.f},5.8f,texBark,texPalmCrown[0],vp);
+        drawPalmTree({-43.f,terrainHW(-43.f,-26.f),-26.f},5.0f,texBark,texPalmCrown[0],vp);
+        drawPalmTree({-43.f,terrainHW(-43.f, 33.f), 33.f},5.5f,texBark,texPalmCrown[0],vp);
+
+        // Weeds / shrubs scattered across west hills
+        drawBillboard({-44.f,terrainHW(-44.f,-30.f),-30.f},1.5f,2.0f,texShrub[0],vp);
+        drawBillboard({-43.f,terrainHW(-43.f,-15.f),-15.f},1.3f,1.8f,texWeed[1],vp);
+        drawBillboard({-45.f,terrainHW(-45.f,  0.f),  0.f},1.4f,1.9f,texShrub[1],vp);
+        drawBillboard({-44.f,terrainHW(-44.f, 12.f), 12.f},1.2f,1.6f,texWeed[0],vp);
+        drawBillboard({-43.f,terrainHW(-43.f, 25.f), 25.f},1.5f,1.9f,texShrub[0],vp);
+        drawBillboard({-45.f,terrainHW(-45.f, 36.f), 36.f},1.3f,1.7f,texWeed[2],vp);
+
+        // ── Course-wide palm trees ────────────────────────────────────────────
+        // Near restaurant / plateau approach
+        drawPalmTree({-16.f,0.f,  8.f},5.5f,texBark,texPalmCrown[0],vp);
+        drawPalmTree({-20.f,0.f, 15.f},6.0f,texBark,texPalmCrown[0],vp);
+        drawPalmTree({-14.f,0.f, -6.f},5.0f,texBark,texPalmCrown[0],vp);
+        // Between H1 and H2
+        drawPalmTree({-28.f,0.f, 27.f},5.5f,texBark,texPalmCrown[0],vp);
+        // Between H2 and H3
+        drawPalmTree({-27.f,0.f,  8.f},5.0f,texBark,texPalmCrown[0],vp);
+        // Between H3 and H4
+        drawPalmTree({-27.f,0.f,-13.f},5.5f,texBark,texPalmCrown[0],vp);
+        // Between H4 and H5
+        drawPalmTree({-29.f,0.f,-27.f},5.0f,texBark,texPalmCrown[0],vp);
+        // Near H6 / south-west
+        drawPalmTree({-22.f,0.f,-41.f},5.5f,texBark,texPalmCrown[0],vp);
+        // Central south area (between river and H7/H8)
+        drawPalmTree({  6.f,0.f,-33.f},5.0f,texBark,texPalmCrown[0],vp);
+        drawPalmTree({ 18.f,0.f,-28.f},5.5f,texBark,texPalmCrown[0],vp);
+
+        // ── Low palm trees (shorter, thicker trunk) scattered throughout ────────
+        // Near restaurant entrance / path leading up
+        drawLowPalmTree({-10.f, 0.f,   9.f}, 3.2f, texPalmCrown[0], vp);
+        drawLowPalmTree({ -8.f, 0.f,  -8.f}, 2.8f, texPalmCrown[0], vp);
+        drawLowPalmTree({  4.f, 0.f,   6.f}, 3.0f, texPalmCrown[0], vp);
+        // Along hole 1 / 2 approach
+        drawLowPalmTree({-24.f, 0.f,  35.f}, 2.6f, texPalmCrown[0], vp);
+        drawLowPalmTree({-24.f, 0.f,  20.f}, 3.0f, texPalmCrown[0], vp);
+        drawLowPalmTree({-25.f, 0.f,   5.f}, 2.8f, texPalmCrown[0], vp);
+        // H3 / H4 area
+        drawLowPalmTree({-24.f, 0.f, -10.f}, 3.2f, texPalmCrown[0], vp);
+        drawLowPalmTree({-23.f, 0.f, -22.f}, 2.7f, texPalmCrown[0], vp);
+        // H5 south corridor
+        drawLowPalmTree({-24.f, 0.f, -38.f}, 3.0f, texPalmCrown[0], vp);
+        drawLowPalmTree({-18.f, 0.f, -44.f}, 2.6f, texPalmCrown[0], vp);
+        // H6 / H7 bottom
+        drawLowPalmTree({  2.f, 0.f, -44.f}, 3.0f, texPalmCrown[0], vp);
+        drawLowPalmTree({ 12.f, 0.f, -40.f}, 2.8f, texPalmCrown[0], vp);
+        // East side / pond area
+        drawLowPalmTree({ 20.f, 0.f,   2.f}, 3.2f, texPalmCrown[0], vp);
+        drawLowPalmTree({ 22.f, 0.f,  -8.f}, 2.6f, texPalmCrown[0], vp);
+        // H9 / H10 upper right approach
+        drawLowPalmTree({ 32.f, 0.f,  28.f}, 2.8f, texPalmCrown[0], vp);
+        drawLowPalmTree({ 28.f, 0.f,  18.f}, 3.0f, texPalmCrown[0], vp);
+        // North central area
+        drawLowPalmTree({  0.f, 0.f,  32.f}, 2.7f, texPalmCrown[0], vp);
+        drawLowPalmTree({  8.f, 0.f,  38.f}, 3.2f, texPalmCrown[0], vp);
 
         // Hill terrain — upper-right corner (smoothly blends into flat ground)
         draw(mTerrainHills, mat4(1), vp, 23);
@@ -1474,6 +1917,8 @@ int main(){
         drawWalkway({ 31.f, 0.f,-45.5f},{34.f,0.f,-39.f},  1.2f, vp); // H9 → H10
         drawWalkway({  5.0f,0.f, 0.f},{ 10.f,0.f,  0.f}, 1.5f, vp);  // restaurant east
         drawWalkway({  0.f, 0.f,-4.0f},{  0.f,0.f,-7.0f},1.5f, vp);  // restaurant south
+        drawWalkway(gHoles[1]->getTeePos() + vec3( 5.f,0.f, 2.f), {-3.f,0.f,5.f}, 2.0f, vp); // H1 → restaurant (starts outside H1 south wall)
+        drawWalkway(gHoles[6]->getTeePos() + vec3( 7.f,0.f, 3.f), {-3.f,0.f,5.f}, 2.0f, vp); // H6 → restaurant
 
         // Golf ball
         if(ball.active){
@@ -1509,17 +1954,21 @@ int main(){
         glfwPollEvents();
     }
 
-    for(int i = 1; i <= 13; i++) delete gHoles[i];
+    for(int i = 1; i <= 12; i++) delete gHoles[i];
     freeMesh(mQuad); freeMesh(mBox); freeMesh(mSphere);
     freeMesh(mCylinder); freeMesh(mTorus); freeMesh(mTrap); freeMesh(mCircle);
-    freeMesh(mVQuad); freeMesh(mRockyBoulder); freeMesh(mTerrainHills);
-    freeMesh(mRiver); freeMesh(mRiverBank); freeMesh(mTaperedCyl);
+    freeMesh(mVQuad); freeMesh(mLeafVQuad); freeMesh(mRockyBoulder); freeMesh(mTerrainHills);
+    freeMesh(mRiver); freeMesh(mRiverBank); freeMesh(mTaperedCyl); freeMesh(mThickCyl);
+    freeMesh(mRestaurantPlateau); freeMesh(mTerrainWest);
     glDeleteTextures(8, texRock);
     glDeleteTextures(1, &texBark);
     glDeleteTextures(3, texPalmCrown);
     glDeleteTextures(3, texWeed);
     glDeleteTextures(2, texShrub);
     glDeleteTextures(1, &texConcrete);
+    glDeleteTextures(1, &texAgave);
+    glDeleteTextures(1, &texFlax);
+    glDeleteTextures(1, &texLowPalmCrown);
     glDeleteBuffers(1,&mSkybox.vbo);
     glDeleteVertexArrays(1,&mSkybox.vao);
     glDeleteTextures(1, &skyTex);

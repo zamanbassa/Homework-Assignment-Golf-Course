@@ -3,28 +3,43 @@
 
 #include "Hole.h"
 
-// ── Hole 12: Narrow bridge crossing the river ────────────────────────────────
-// Narrow NS bridge spans the river entry segment around z=-19. Wooden floor,
-// taller railings, water hazard on either side. Precision shot required.
-// North end flush with hole 11's south wall at z=-23.
+// ── Hole 12: Z-shape zigzag on concrete ──────────────────────────────────────
+// Three connected rectangular segments form a Z (top arm → connector → bottom
+// arm). Concrete floor. Tee at east end of top arm, cup at west end of bottom.
+// Shifted 2 units south of original Abdelrahman layout.
 //
-//      x: 37   39
-//  z=-23  +---+   <- north end (flush with H11)
-//         |tee|
-//         | | |   <- bridge over river (river crosses at z~-19)
-//         |cup|
-//  z=-13  +---+   <- south end (just south of river bank)
+//   x: 34   36                  40
+// z=-10  +-+-+------------------+   <- north wall of top arm
+//        |       TOP ARM (A)    |
+//  z=-8  +-+-+------------------+   <- south of A / east of B
+//        | B |
+//        | B |  CONNECTOR
+//        | B |
+//  z=-4  +-+-+--+--+--+--+--+   <- north of C / west of B
+//        |       BOTTOM ARM (C)
+//  z=-2  +---+--+--+--+--+--+
+//        30                 36
 
-static const float H12_CX    = 38.0f;   // bridge centre x
-static const float H12_FW    =  2.0f;   // narrow width (x=37..39)
-static const float H12_XW    = H12_CX - H12_FW * 0.5f;  // 37.0
-static const float H12_XE    = H12_CX + H12_FW * 0.5f;  // 39.0
-static const float H12_ZN    = -23.0f;  // north wall (flush with H11 south)
-static const float H12_ZS    = -13.0f;  // south wall (south of river bank)
-static const float H12_WH    =  0.60f;  // taller wall = railing
-static const float H12_WTH   =  0.18f;  // thinner railing
-static const float H12_POST_R = 0.18f;  // bridge post radius
-static const float H12_FLOOR_Y = 0.012f; // bridge floor slightly above river (river at 0.003)
+// Segment A — top arm (EW, tee at east end)
+static const float H12_AXW   = 34.0f;
+static const float H12_AXE   = 40.0f;
+static const float H12_AZN   = -10.0f;
+static const float H12_AZS   =  -8.0f;
+
+// Segment B — middle connector (NS)
+static const float H12_BXW   = 34.0f;
+static const float H12_BXE   = 36.0f;
+static const float H12_BZN   =  -8.0f;
+static const float H12_BZS   =  -4.0f;
+
+// Segment C — bottom arm (EW, cup at west end)
+static const float H12_CXW   = 30.0f;
+static const float H12_CXE   = 36.0f;
+static const float H12_CZN   =  -4.0f;
+static const float H12_CZS   =  -2.0f;
+
+static const float H12_WH    =  0.45f;
+static const float H12_WTH   =  0.28f;
 
 class Hole12 : public Hole {
 public:

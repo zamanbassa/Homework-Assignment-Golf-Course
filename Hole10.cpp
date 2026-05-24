@@ -93,8 +93,8 @@ void Hole10::render(const mat4& vp) const {
 
     // Arc walls
     { mat4 m = glm::translate(mat4(1), {H10_CX, 0.0f, H10_CZ});
-      draw(mArcWallIn,  m, vp, 8);
-      draw(mArcWallOut, m, vp, 8); }
+      draw(mArcWallIn,  m, vp, 21);
+      draw(mArcWallOut, m, vp, 21); }
 
     // End cap at angle=0 (tee end, east)
     drawWall(vp,

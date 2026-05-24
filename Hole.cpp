@@ -44,5 +44,5 @@ void Hole::drawWall(const mat4& vp, float cx, float cy, float cz,
     if (yRot != 0.f)
         m = glm::rotate(m, yRot, {0, 1, 0});
     m = glm::scale(m, {sx, sy, sz});
-    draw(*mBox, m, vp, 8);
+    draw(*mBox, m, vp, 21);
 }
