@@ -1,117 +1,233 @@
 #include "Hole13.h"
 #include <cmath>
+#include <vector>
 
-// Tee at east end of top arm A, cup at west end of bottom arm C
-static const float H13_TEE_X = H13_AXE - 2.0f;                       // 38.0
-static const float H13_TEE_Z = (H13_AZN + H13_AZS) * 0.5f;           // -11.0
-static const float H13_CUP_X = H13_CXW + 2.0f;                       // 32.0
-static const float H13_CUP_Z = (H13_CZN + H13_CZS) * 0.5f;           // -5.0
+static const float PI13 = 3.14159265358979f;
+
+// Flat sand disk — drawn ABOVE the grass plane so the bowl is visible from above.
+// The grass plane at y=0 would otherwise hide the sunken bowl interior.
+static Mesh h13_makeSandDisk(float R, int segs = 48) {
+    std::vector<Vertex>   V;
+    std::vector<unsigned> I;
+    V.push_back({{0.f, 0.f, 0.f}, {0, 1, 0}, {0.5f, 0.5f}});
+    for (int i = 0; i < segs; i++) {
+        float th = 2.f * PI13 * i / segs;
+        float cx = R * cosf(th);
+        float cz = R * sinf(th);
+        float u  = 0.5f + 0.5f * cosf(th);
+        float v  = 0.5f + 0.5f * sinf(th);
+        V.push_back({{cx, 0.f, cz}, {0, 1, 0}, {u, v}});
+    }
+    for (int i = 0; i < segs; i++) {
+        I.insert(I.end(), {(unsigned)0, (unsigned)(1 + (i + 1) % segs), (unsigned)(1 + i)});
+    }
+    return upload(V, I);
+}
+
+// Generate a paraboloid bowl mesh: y(r) = -DEPTH * (1 - r²/R²)
+// Centred on origin, rim at y=0, deepest point at y=-DEPTH.
+static Mesh h13_makeBowl(float R, float depth, int rings = 14, int segs = 32) {
+    std::vector<Vertex>   V;
+    std::vector<unsigned> I;
+
+    // Vertex 0: centre point (deepest)
+    V.push_back({{0.f, -depth, 0.f}, {0.f, 1.f, 0.f}, {0.5f, 0.5f}});
+
+    // Concentric rings of vertices
+    for (int i = 1; i <= rings; i++) {
+        float r = R * (float)i / rings;
+        float y = -depth * (1.0f - (r * r) / (R * R));
+        for (int j = 0; j < segs; j++) {
+            float th = 2.f * PI13 * j / segs;
+            float x  = r * cosf(th);
+            float z  = r * sinf(th);
+            // Surface normal: gradient of y(x,z) = -d*(1 - (x²+z²)/R²)
+            //   dy/dx = 2*d*x/R², dy/dz = 2*d*z/R²
+            //   n = normalize(-dy/dx, 1, -dy/dz)
+            glm::vec3 n = glm::normalize(glm::vec3(
+                -2.f * depth * x / (R * R),
+                 1.f,
+                -2.f * depth * z / (R * R)
+            ));
+            float u = 0.5f + 0.5f * (x / R);
+            float v = 0.5f + 0.5f * (z / R);
+            V.push_back({{x, y, z}, n, {u, v}});
+        }
+    }
+
+    // Triangles: centre fan to first ring
+    for (int j = 0; j < segs; j++) {
+        unsigned a = 0;
+        unsigned b = 1 + j;
+        unsigned c = 1 + (j + 1) % segs;
+        I.insert(I.end(), {a, c, b});  // CCW from above
+    }
+
+    // Quad strips between consecutive rings
+    for (int i = 1; i < rings; i++) {
+        unsigned b0 = 1 + (i - 1) * segs;
+        unsigned b1 = 1 + i * segs;
+        for (int j = 0; j < segs; j++) {
+            unsigned a = b0 + j;
+            unsigned b = b0 + (j + 1) % segs;
+            unsigned c = b1 + j;
+            unsigned d = b1 + (j + 1) % segs;
+            I.insert(I.end(), {a, d, b, a, c, d});  // CCW from above
+        }
+    }
+
+    return upload(V, I);
+}
 
 Hole13::Hole13(const Mesh* q, const Mesh* b, const Mesh* c, const Mesh* t)
-    : Hole(13, q, b, c, t) {}
+    : Hole(13, q, b, c, t)
+{
+    mBowl     = h13_makeBowl(H13_R, H13_DEPTH);
+    mSandDisk = h13_makeSandDisk(H13_R);
+}
 
-static void drawFloor(const Mesh* quad, const mat4& vp,
-                      float xw, float xe, float zn, float zs, int surf) {
-    mat4 m = glm::translate(mat4(1), {(xw + xe) * 0.5f, 0.f, (zn + zs) * 0.5f});
-    m = glm::scale(m, {xe - xw, 1.f, zs - zn});
-    draw(*quad, m, vp, surf);
+Hole13::~Hole13() {
+    glDeleteBuffers(1, &mBowl.vbo);
+    glDeleteBuffers(1, &mBowl.ebo);
+    glDeleteVertexArrays(1, &mBowl.vao);
+    glDeleteBuffers(1, &mSandDisk.vbo);
+    glDeleteBuffers(1, &mSandDisk.ebo);
+    glDeleteVertexArrays(1, &mSandDisk.vao);
 }
 
 void Hole13::render(const mat4& vp) const {
-    // Three concrete floor segments forming a Z
-    drawFloor(mQuad, vp, H13_AXW, H13_AXE, H13_AZN, H13_AZS, 8);  // A — top arm
-    drawFloor(mQuad, vp, H13_BXW, H13_BXE, H13_BZN, H13_BZS, 8);  // B — connector
-    drawFloor(mQuad, vp, H13_CXW, H13_CXE, H13_CZN, H13_CZS, 8);  // C — bottom arm
+    // Visible sand disk on top of grass — marks the bowl from above.
+    // (The grass plane at y=0 would otherwise hide the sunken bowl interior.)
+    { mat4 m = glm::translate(mat4(1), {H13_CX, 0.006f, H13_CZ});
+      draw(mSandDisk, m, vp, 4); }  // surface 4 = sand
 
-    // Tee box (in A, east end)
-    { mat4 m = glm::translate(mat4(1), {H13_TEE_X, 0.005f, H13_TEE_Z});
-      m = glm::scale(m, {1.5f, 1.f, (H13_AZS - H13_AZN) - 0.2f});
+    // Paraboloid bowl mesh below — provides physics shape and visible depression
+    // at angled views. Rim slightly above grass to avoid z-fighting.
+    { mat4 m = glm::translate(mat4(1), {H13_CX, 0.005f, H13_CZ});
+      draw(mBowl, m, vp, 4); }
+
+    // Flat tee box rectangle (north of bowl)
+    { float midX = (H13_TXW + H13_TXE) * 0.5f;
+      float midZ = (H13_TZN + H13_TZS) * 0.5f;
+      mat4 m = glm::translate(mat4(1), {midX, 0.f, midZ});
+      m = glm::scale(m, {H13_TXE - H13_TXW, 1.f, H13_TZS - H13_TZN});
+      draw(*mQuad, m, vp, 0); }
+
+    // Tee marker
+    { float midZ = (H13_TZN + H13_TZS) * 0.5f;
+      mat4 m = glm::translate(mat4(1), {(H13_TXW + H13_TXE) * 0.5f, 0.005f, midZ});
+      m = glm::scale(m, {(H13_TXE - H13_TXW) - 0.4f, 1.f, 1.0f});
       draw(*mQuad, m, vp, 1); }
 
-    const float WH = H13_WH, WTH = H13_WTH;
+    // Tee-box walls (3 sides — south is open to bowl)
+    drawWall(vp, (H13_TXW + H13_TXE) * 0.5f, H13_WH * 0.5f, H13_TZN - H13_WTH * 0.5f,
+             (H13_TXE - H13_TXW) + H13_WTH * 2.f, H13_WH, H13_WTH);
+    drawWall(vp, H13_TXW - H13_WTH * 0.5f, H13_WH * 0.5f, (H13_TZN + H13_TZS) * 0.5f,
+             H13_WTH, H13_WH, (H13_TZS - H13_TZN) + H13_WTH * 2.f);
+    drawWall(vp, H13_TXE + H13_WTH * 0.5f, H13_WH * 0.5f, (H13_TZN + H13_TZS) * 0.5f,
+             H13_WTH, H13_WH, (H13_TZS - H13_TZN) + H13_WTH * 2.f);
 
-    // Walls — external boundary of A∪B∪C going clockwise
+    // Cup at the bottom of the bowl (sunken)
+    // We can't use drawCup because it assumes y=0 ground; inline the cup elements.
+    const float cupX  = H13_CX;
+    const float cupZ  = H13_CZ;
+    const float cupY  = -H13_DEPTH + 0.01f;
+    const float HALF_PI = 1.5707963f;
 
-    // W1: north wall of A   (z=-12, x in [34,40])
-    drawWall(vp, (H13_AXW + H13_AXE) * 0.5f, WH * 0.5f, H13_AZN - WTH * 0.5f,
-             (H13_AXE - H13_AXW) + WTH * 2.f, WH, WTH);
+    { mat4 m = glm::translate(mat4(1), {cupX, cupY, cupZ});
+      m = glm::scale(m, {0.35f, 0.1f, 0.35f});
+      draw(*mTorus, m, vp, 19); }
+    { mat4 m = glm::translate(mat4(1), {cupX, cupY - 0.005f, cupZ});
+      m = glm::scale(m, {0.33f, 1.f, 0.33f});
+      draw(*mQuad, m, vp, 19); }
 
-    // W2: east wall of A   (x=40, z in [-12,-10])
-    drawWall(vp, H13_AXE + WTH * 0.5f, WH * 0.5f, (H13_AZN + H13_AZS) * 0.5f,
-             WTH, WH, (H13_AZS - H13_AZN) + WTH * 2.f);
-
-    // W3: south wall of A east of B   (z=-10, x in [36,40])
-    drawWall(vp, (H13_BXE + H13_AXE) * 0.5f, WH * 0.5f, H13_AZS + WTH * 0.5f,
-             (H13_AXE - H13_BXE) + WTH, WH, WTH);
-
-    // W4: east wall of B+C   (x=36, z in [-10,-4])
-    drawWall(vp, H13_BXE + WTH * 0.5f, WH * 0.5f, (H13_BZN + H13_CZS) * 0.5f,
-             WTH, WH, (H13_CZS - H13_BZN) + WTH * 2.f);
-
-    // W5: south wall of C   (z=-4, x in [30,36])
-    drawWall(vp, (H13_CXW + H13_CXE) * 0.5f, WH * 0.5f, H13_CZS + WTH * 0.5f,
-             (H13_CXE - H13_CXW) + WTH * 2.f, WH, WTH);
-
-    // W6: west wall of C   (x=30, z in [-6,-4])
-    drawWall(vp, H13_CXW - WTH * 0.5f, WH * 0.5f, (H13_CZN + H13_CZS) * 0.5f,
-             WTH, WH, (H13_CZS - H13_CZN) + WTH * 2.f);
-
-    // W7: north wall of C west of B   (z=-6, x in [30,34])
-    drawWall(vp, (H13_CXW + H13_BXW) * 0.5f, WH * 0.5f, H13_CZN - WTH * 0.5f,
-             (H13_BXW - H13_CXW) + WTH, WH, WTH);
-
-    // W8: west wall of B+A   (x=34, z in [-12,-6])
-    drawWall(vp, H13_BXW - WTH * 0.5f, WH * 0.5f, (H13_AZN + H13_BZS) * 0.5f,
-             WTH, WH, (H13_BZS - H13_AZN) + WTH * 2.f);
-
-    // Cup (in C, west end)
-    drawCup(vp, H13_CUP_X, H13_CUP_Z);
+    // Visible hole indicator on top of the sand disk — a dark cup-mouth disk
+    // showing where the cup is when viewed from above (the actual cup geometry
+    // above sits at the bottom of the bowl, hidden by the sand disk + grass).
+    { mat4 m = glm::translate(mat4(1), {cupX, 0.008f, cupZ});
+      m = glm::scale(m, {0.45f, 1.f, 0.45f});
+      draw(*mQuad, m, vp, 19); }
+    // Cup rim ring on top so it reads as a hole, not a flat disk
+    { mat4 m = glm::translate(mat4(1), {cupX, 0.010f, cupZ});
+      m = glm::scale(m, {0.50f, 0.06f, 0.50f});
+      draw(*mTorus, m, vp, 19); }
+    // Long flag pole — needs to clear the bowl depth (DEPTH=2.0) and stand well above the grass
+    { mat4 m = glm::translate(mat4(1), {cupX + 0.38f, cupY - 0.01f, cupZ});
+      m = glm::scale(m, {0.05f, 5.5f, 0.05f});
+      draw(*mCylinder, m, vp, 16); }
+    // Flag — placed near the top of the pole so it's visible above the bowl rim
+    { mat4 m = glm::translate(mat4(1), {cupX + 0.655f, cupY + 5.0f, cupZ});
+      m = glm::rotate(m, HALF_PI, {1, 0, 0});
+      m = glm::scale(m, {0.55f, 1.0f, 0.32f});
+      draw(*mQuad, m, vp, 17); }
 }
 
 void Hole13::wallCollide(vec3& pos, vec3& vel) const {
     const float r  = 0.72f;
     const float BR = 0.08f;
 
-    // W1: north of A (z=-12, x in [34,40]) — bounce south
-    if (pos.x > H13_AXW && pos.x < H13_AXE && pos.z - BR < H13_AZN) {
-        pos.z = H13_AZN + BR; if (vel.z < 0) vel.z =  fabsf(vel.z) * r;
+    // Tee-box walls (only when ball is within tee-box z range)
+    if (pos.z < H13_TZS && pos.z > H13_TZN - 1.f) {
+        if (pos.x - BR < H13_TXW && pos.x > H13_TXW - 1.f) {
+            pos.x = H13_TXW + BR; if (vel.x < 0) vel.x = fabsf(vel.x) * r;
+        }
+        if (pos.x + BR > H13_TXE && pos.x < H13_TXE + 1.f) {
+            pos.x = H13_TXE - BR; if (vel.x > 0) vel.x = -fabsf(vel.x) * r;
+        }
+        if (pos.z - BR < H13_TZN) {
+            pos.z = H13_TZN + BR; if (vel.z < 0) vel.z = fabsf(vel.z) * r;
+        }
     }
-    // W2: east of A (x=40, z in [-12,-10]) — bounce west
-    if (pos.z > H13_AZN && pos.z < H13_AZS && pos.x + BR > H13_AXE) {
-        pos.x = H13_AXE - BR; if (vel.x > 0) vel.x = -fabsf(vel.x) * r;
-    }
-    // W3: south of A east of B (z=-10, x in [36,40]) — bounce north
-    if (pos.x > H13_BXE && pos.x < H13_AXE && pos.z + BR > H13_AZS) {
-        pos.z = H13_AZS - BR; if (vel.z > 0) vel.z = -fabsf(vel.z) * r;
-    }
-    // W4: east of B+C (x=36, z in [-10,-4]) — bounce west
-    if (pos.z > H13_BZN && pos.z < H13_CZS && pos.x + BR > H13_BXE) {
-        pos.x = H13_BXE - BR; if (vel.x > 0) vel.x = -fabsf(vel.x) * r;
-    }
-    // W5: south of C (z=-4, x in [30,36]) — bounce north
-    if (pos.x > H13_CXW && pos.x < H13_CXE && pos.z + BR > H13_CZS) {
-        pos.z = H13_CZS - BR; if (vel.z > 0) vel.z = -fabsf(vel.z) * r;
-    }
-    // W6: west of C (x=30, z in [-6,-4]) — bounce east
-    if (pos.z > H13_CZN && pos.z < H13_CZS && pos.x - BR < H13_CXW) {
-        pos.x = H13_CXW + BR; if (vel.x < 0) vel.x =  fabsf(vel.x) * r;
-    }
-    // W7: north of C west of B (z=-6, x in [30,34]) — bounce south
-    if (pos.x > H13_CXW && pos.x < H13_BXW && pos.z - BR < H13_CZN) {
-        pos.z = H13_CZN + BR; if (vel.z < 0) vel.z =  fabsf(vel.z) * r;
-    }
-    // W8: west of B+A (x=34, z in [-12,-6]) — bounce east
-    if (pos.z > H13_AZN && pos.z < H13_BZS && pos.x - BR < H13_BXW) {
-        pos.x = H13_BXW + BR; if (vel.x < 0) vel.x =  fabsf(vel.x) * r;
+
+    // Soft outer rim on bowl: bounce ball back if it climbs past R + small margin
+    float dx = pos.x - H13_CX, dz = pos.z - H13_CZ;
+    float d2 = dx * dx + dz * dz;
+    const float RIM = H13_R + 0.6f;
+    if (d2 > RIM * RIM) {
+        // Skip if in the tee-box corridor (north of bowl)
+        bool inTeeCorridor = (pos.x > H13_TXW - BR && pos.x < H13_TXE + BR
+                              && pos.z < H13_TZS + 0.5f);
+        if (!inTeeCorridor) {
+            float d = sqrtf(d2);
+            float nx = dx / d, nz = dz / d;
+            pos.x = H13_CX + nx * (RIM - BR);
+            pos.z = H13_CZ + nz * (RIM - BR);
+            float vdn = vel.x * nx + vel.z * nz;
+            if (vdn > 0) { vel.x -= (1.f + r) * vdn * nx; vel.z -= (1.f + r) * vdn * nz; }
+        }
     }
 }
 
 bool Hole13::nearCup(const vec3& pos) const {
-    float dx = pos.x - H13_CUP_X;
-    float dz = pos.z - H13_CUP_Z;
-    return sqrtf(dx * dx + dz * dz) < 0.35f;
+    float dx = pos.x - H13_CX;
+    float dz = pos.z - H13_CZ;
+    return sqrtf(dx * dx + dz * dz) < 0.45f;
 }
 
 vec3 Hole13::getTeePos() const {
-    return { H13_TEE_X, 0.08f, H13_TEE_Z };
+    return { (H13_TXW + H13_TXE) * 0.5f, 0.08f, (H13_TZN + H13_TZS) * 0.5f };
+}
+
+// Bowl floor height under (x,z). Outside the bowl returns 0 (grass level).
+float Hole13::groundY(const vec3& pos) const {
+    float dx = pos.x - H13_CX;
+    float dz = pos.z - H13_CZ;
+    float r2 = dx * dx + dz * dz;
+    if (r2 >= H13_R * H13_R) return BALL_R_CONST;
+    float yBowl = -H13_DEPTH * (1.0f - r2 / (H13_R * H13_R));
+    return yBowl + BALL_R_CONST;
+}
+
+// Gravity-induced lateral force from the bowl slope.
+// Slope: dy/dr = 2*D*r/R²  →  force toward centre = g * slope.
+vec3 Hole13::terrainForce(const vec3& pos) const {
+    float dx = pos.x - H13_CX;
+    float dz = pos.z - H13_CZ;
+    float r2 = dx * dx + dz * dz;
+    if (r2 < 0.0001f || r2 >= H13_R * H13_R) return vec3(0.f);
+    float r = sqrtf(r2);
+    const float g = 12.f;  // gravity strength multiplier
+    float slope = 2.f * H13_DEPTH * r / (H13_R * H13_R);
+    float mag = g * slope;
+    return vec3(-mag * dx / r, 0.f, -mag * dz / r);
 }

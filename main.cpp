@@ -49,6 +49,11 @@
 #include "Hole11.h"
 #include "Hole12.h"
 #include "Hole13.h"
+#include "Hole14.h"
+#include "Hole15.h"
+#include "Hole16.h"
+#include "Hole17.h"
+#include "Hole18.h"
 
 using namespace std;
 using glm::vec2;
@@ -395,6 +400,16 @@ static vec3 LAMP_POSITIONS[] = {
     {  6.f,  0.f,  -5.f},
     // Pond lamp (right bank)
     { 24.f,  0.f,  15.f},
+    // Hole 17 — Final challenge (L-shape) area lamps
+    { 27.5f, 0.f,  43.5f},  // east of A arm (near tee)
+    { 27.5f, 0.f,  40.0f},  // east of corner
+    { 20.0f, 0.f,  38.0f},  // mid B arm north
+    { 15.0f, 0.f,  41.5f},  // west of cup
+    // Hole 18 — Lighthouse plaza lamps (around 8×8 plaza at x=12-20, z=45-53)
+    { 10.5f, 0.f,  44.0f},  // outside NW
+    { 21.5f, 0.f,  44.0f},  // outside NE
+    { 10.5f, 0.f,  54.0f},  // outside SW
+    { 21.5f, 0.f,  54.0f},  // outside SE
 };
 static const int LAMP_COUNT = (int)(sizeof(LAMP_POSITIONS)/sizeof(LAMP_POSITIONS[0]));
 
@@ -465,7 +480,7 @@ static const float BALL_R  =  0.08f;
 static const float MAX_AIM =  6.0f;
 
 static int gCurrentHole = 1;
-static Hole* gHoles[14] = {};
+static Hole* gHoles[19] = {};
 
 struct Ball {
     vec3  pos    = {H1_CX, BALL_R, H1_CZ+5.5f};
@@ -1072,6 +1087,11 @@ int main(){
     gHoles[11] = new Hole11(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[12] = new Hole12(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[13] = new Hole13(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[14] = new Hole14(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[15] = new Hole15(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[16] = new Hole16(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[17] = new Hole17(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[18] = new Hole18(&mQuad, &mBox, &mCylinder, &mTorus);
 
     double prev = glfwGetTime();
 
@@ -1109,7 +1129,7 @@ int main(){
             ball.moving = false;
             printf("Hole %d: %d stroke%s\n",
                    gCurrentHole, ball.strokes, ball.strokes==1?"":"s");
-            if(gCurrentHole < 13){
+            if(gCurrentHole < 18){
                 gCurrentHole++;
                 ball.pos = gHoles[gCurrentHole] ? gHoles[gCurrentHole]->getTeePos()
                                                 : vec3(0.f, BALL_R, 0.f);
@@ -1181,7 +1201,7 @@ int main(){
 
         draw(mTrap, mat4(1), vp, 2);
 
-        for(int i = 1; i <= 13; i++)
+        for(int i = 1; i <= 18; i++)
             if(gHoles[i]) gHoles[i]->render(vp);
 
         drawRestaurant(vp);
@@ -1293,6 +1313,23 @@ int main(){
         drawPalmTree({38.f, terrainH(38.f,50.f), 50.f}, 5.5f, texBark, texPalmCrown[0], vp);
         drawPalmTree({47.f, terrainH(47.f,44.f), 44.f}, 5.0f, texBark, texPalmCrown[0], vp);
 
+        // Hole 14 (smooth S-curve, was H15 before renumber) — smaller decorative palms
+        {
+            const auto& tp = Hole14::treePositions();
+            for (size_t i = 0; i < tp.size(); i++) {
+                float h = 2.6f + 0.4f * (float)((i * 13) % 5) / 4.f;  // slight variation
+                drawPalmTree(tp[i], h, texBark, texPalmCrown[i % 3], vp);
+            }
+        }
+
+        // Hole 18 (lighthouse plaza) — corner decorative palms
+        {
+            const auto& tp = Hole18::treePositions();
+            for (size_t i = 0; i < tp.size(); i++) {
+                drawPalmTree(tp[i], 3.2f, texBark, texPalmCrown[i % 3], vp);
+            }
+        }
+
         // Tropical shrubs
         drawBillboard({44.f, terrainH(44.f,48.f), 48.f}, 2.5f, 3.0f, texShrub[0], vp);
         drawBillboard({34.f, terrainH(34.f,46.f), 46.f}, 2.8f, 3.5f, texShrub[1], vp);
@@ -1344,7 +1381,7 @@ int main(){
         glfwPollEvents();
     }
 
-    for(int i = 1; i <= 13; i++) delete gHoles[i];
+    for(int i = 1; i <= 18; i++) delete gHoles[i];
     freeMesh(mQuad); freeMesh(mBox); freeMesh(mSphere);
     freeMesh(mCylinder); freeMesh(mTorus); freeMesh(mTrap); freeMesh(mCircle);
     freeMesh(mVQuad); freeMesh(mRockyBoulder); freeMesh(mTerrainHills);
