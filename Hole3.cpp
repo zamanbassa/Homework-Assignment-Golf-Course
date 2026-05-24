@@ -25,8 +25,8 @@ void Hole3::render(const mat4& vp) const {
     { mat4 m=glm::translate(mat4(1),{cx,0,lc1z}); m=glm::scale(m,{H3_R,1,H3_R}); draw(*mCircle,m,vp,0); }
     { mat4 m=glm::translate(mat4(1),{cx,0,lc2z}); m=glm::scale(m,{H3_R,1,H3_R}); draw(*mCircle,m,vp,0); }
     { mat4 m=glm::translate(mat4(1),{cx,0.005f,teeZ}); m=glm::scale(m,{2.0f,1,1.0f}); draw(*mQuad,m,vp,1); }
-    { mat4 m=glm::translate(mat4(1),{cx,0,lc1z}); draw(mWall1,m,vp,8); }
-    { mat4 m=glm::translate(mat4(1),{cx,0,lc2z}); draw(mWall2,m,vp,8); }
+    { mat4 m=glm::translate(mat4(1),{cx,0,lc1z}); draw(mWall1,m,vp,21); }
+    { mat4 m=glm::translate(mat4(1),{cx,0,lc2z}); draw(mWall2,m,vp,21); }
     { mat4 m=glm::translate(mat4(1),{cx,0,lc1z}); m=glm::scale(m,{H3_OBSR*2,0.40f,H3_OBSR*2}); draw(*mCylinder,m,vp,10); }
     { mat4 m=glm::translate(mat4(1),{cx,0,lc2z}); m=glm::scale(m,{H3_OBSR*2,0.40f,H3_OBSR*2}); draw(*mCylinder,m,vp,10); }
     drawCup(vp, cx, cupZ);

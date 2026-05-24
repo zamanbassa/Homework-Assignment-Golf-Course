@@ -34,8 +34,8 @@ void Hole7::render(const mat4& vp) const {
     { mat4 m=glm::translate(mat4(1),{c1x,0,cz}); draw(mFloor1,m,vp,0); }
     { mat4 m=glm::translate(mat4(1),{c2x,0,cz}); draw(mFloor2,m,vp,0); }
     { mat4 m=glm::translate(mat4(1),{teeX+1.f,0.005f,cz+1.f}); m=glm::scale(m,{ro-ri-0.3f,1,1.5f}); draw(*mQuad,m,vp,1); }
-    { mat4 m=glm::translate(mat4(1),{c1x,0,cz}); draw(mWall1In,m,vp,8); draw(mWall1Out,m,vp,8); }
-    { mat4 m=glm::translate(mat4(1),{c2x,0,cz}); draw(mWall2In,m,vp,8); draw(mWall2Out,m,vp,8); }
+    { mat4 m=glm::translate(mat4(1),{c1x,0,cz}); draw(mWall1In,m,vp,21); draw(mWall1Out,m,vp,21); }
+    { mat4 m=glm::translate(mat4(1),{c2x,0,cz}); draw(mWall2In,m,vp,21); draw(mWall2Out,m,vp,21); }
     drawWall(vp, teeX, H7_WH7*0.5f, cz, ro-ri+H7_WTH7, H7_WH7, H7_WTH7);
     drawWall(vp, cupX, H7_WH7*0.5f, cz, ro-ri+H7_WTH7, H7_WH7, H7_WTH7);
     float cx9=cupX-1.f, cz9=cz-1.f;

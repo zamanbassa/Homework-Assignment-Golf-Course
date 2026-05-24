@@ -22,15 +22,15 @@ void Hole4::render(const mat4& vp) const {
 
     { mat4 m=glm::translate(mat4(1),{cx,0,cz}); draw(mFloor,m,vp,0); }
     { mat4 m=glm::translate(mat4(1),{cx+RMID,0.005f,cz}); m=glm::scale(m,{H4_RO-H4_RI,1,1.5f}); draw(*mQuad,m,vp,1); }
-    { mat4 m=glm::translate(mat4(1),{cx,0,cz}); draw(mWallIn, m,vp,8); }
-    { mat4 m=glm::translate(mat4(1),{cx,0,cz}); draw(mWallOut,m,vp,8); }
+    { mat4 m=glm::translate(mat4(1),{cx,0,cz}); draw(mWallIn, m,vp,21); }
+    { mat4 m=glm::translate(mat4(1),{cx,0,cz}); draw(mWallOut,m,vp,21); }
     {
         float ct=cosf(H4_T0), st=sinf(H4_T0);
         float ecx=cx+RMID*ct, ecz=cz+RMID*st;
         mat4 m=glm::translate(mat4(1),{ecx,WH*0.5f,ecz});
         m=glm::rotate(m,-H4_T0,{0,1,0});
         m=glm::scale(m,{H4_RO-H4_RI+WTH*2,WH,WTH});
-        draw(*mBox,m,vp,8);
+        draw(*mBox,m,vp,21);
     }
     float cx4=cx+RMID*cosf(H4_T0), cz4=cz+RMID*sinf(H4_T0);
     drawCup(vp, cx4, cz4);

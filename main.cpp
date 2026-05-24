@@ -1610,7 +1610,7 @@ int main()
         drawWalkway({5.0f, 0.f, 0.f}, {10.f, 0.f, 0.f}, 1.5f, vp);       // restaurant east
         drawWalkway({0.f, 0.f, -4.0f}, {0.f, 0.f, -7.0f}, 1.5f, vp);     // restaurant south
         drawWalkway(gHoles[1]->getTeePos() + vec3(3.0f,0,-1.0f), {0, 0, 0}, 2.0f, vp);
-        drawWalkway(gHoles[8]->getTeePos()+ vec3(0.0f,0,4.0f), {0, 0, 0}, 2.0f, vp);
+        drawWalkway(gHoles[6]->getTeePos()+ vec3(0.0f,0,4.0f), {0, 0, 0}, 2.0f, vp);
 
         // Golf ball
         if (ball.active)
