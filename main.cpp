@@ -954,93 +954,12 @@ static void drawTable(vec3 pos, const mat4& vp){
     { mat4 m = glm::translate(mat4(1), pos + vec3(0, 1.18f, 0)); m = glm::scale(m, {1.2f, 0.06f, 0.90f}); draw(mBox, m, vp, 6); }
 }
 
-
-
-// static void drawRestaurant(const mat4& vp){
-//     float cx = 0.f, cz = 0.f;
-//     float bw = 10.f, bd = 8.f, bh = 3.5f;
-
-//     // Floor
-//     { mat4 m = glm::translate(mat4(1), {cx, 0.01f, cz}); m = glm::scale(m, {bw, 1, bd}); draw(mQuad, m, vp, 9); }
-
-//     // Walls
-//     { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz-bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
-//     { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz+bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
-//     { mat4 m = glm::translate(mat4(1), {cx-bw*.5f, bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
-//     { mat4 m = glm::translate(mat4(1), {cx+bw*.5f, bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
-
-//     auto windowFrontBack = [&](float x, float z, float dir){
-//         float y = bh * 0.6f;
-//         float off = 0.08f * dir;
-
-//         { mat4 m = glm::translate(mat4(1), {x, y, z}); m = glm::scale(m, {1.5f, 1.2f, 0.05f}); draw(mBox, m, vp, 15); }
-
-//         { mat4 m = glm::translate(mat4(1), {x, y+0.65f, z+off}); m = glm::scale(m, {1.8f, 0.12f, 0.10f}); draw(mBox, m, vp, 13); }
-//         { mat4 m = glm::translate(mat4(1), {x, y-0.65f, z+off}); m = glm::scale(m, {1.8f, 0.12f, 0.10f}); draw(mBox, m, vp, 13); }
-//         { mat4 m = glm::translate(mat4(1), {x-0.85f, y, z+off}); m = glm::scale(m, {0.12f, 1.4f, 0.10f}); draw(mBox, m, vp, 13); }
-//         { mat4 m = glm::translate(mat4(1), {x+0.85f, y, z+off}); m = glm::scale(m, {0.12f, 1.4f, 0.10f}); draw(mBox, m, vp, 13); }
-
-//         { mat4 m = glm::translate(mat4(1), {x, y, z+off}); m = glm::scale(m, {0.12f, 1.3f, 0.12f}); draw(mBox, m, vp, 13); }
-//         { mat4 m = glm::translate(mat4(1), {x, y, z+off}); m = glm::scale(m, {1.6f, 0.12f, 0.12f}); draw(mBox, m, vp, 13); }
-//     };
-
-//     auto windowSides = [&](float x, float z, float dir){
-//         float y = bh * 0.6f;
-//         float off = 0.08f * dir;
-
-//         { mat4 m = glm::translate(mat4(1), {x, y, z}); m = glm::scale(m, {0.05f, 1.2f, 1.5f}); draw(mBox, m, vp, 15); }
-
-//         { mat4 m = glm::translate(mat4(1), {x+off, y+0.65f, z}); m = glm::scale(m, {0.10f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
-//         { mat4 m = glm::translate(mat4(1), {x+off, y-0.65f, z}); m = glm::scale(m, {0.10f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
-//         { mat4 m = glm::translate(mat4(1), {x+off, y, z-0.85f}); m = glm::scale(m, {0.10f, 1.4f, 0.12f}); draw(mBox, m, vp, 13); }
-//         { mat4 m = glm::translate(mat4(1), {x+off, y, z+0.85f}); m = glm::scale(m, {0.10f, 1.4f, 0.12f}); draw(mBox, m, vp, 13); }
-
-//         { mat4 m = glm::translate(mat4(1), {x+off, y, z}); m = glm::scale(m, {0.12f, 1.3f, 0.12f}); draw(mBox, m, vp, 13); }
-//         { mat4 m = glm::translate(mat4(1), {x+off, y, z}); m = glm::scale(m, {0.12f, 0.12f, 1.6f}); draw(mBox, m, vp, 13); }
-//     };
-
-//     // Windows
-//     windowFrontBack(cx-2.8f, cz+bd*0.5f+0.16f, 1.f);
-//     windowFrontBack(cx+2.8f, cz+bd*0.5f+0.16f, 1.f);
-
-//     windowFrontBack(cx-2.8f, cz-bd*0.5f-0.16f, -1.f);
-//     windowFrontBack(cx+2.8f, cz-bd*0.5f-0.16f, -1.f);
-
-//     windowSides(cx-bw*0.5f-0.16f, cz-2.f, -1.f);
-//     windowSides(cx-bw*0.5f-0.16f, cz+2.f, -1.f);
-
-//     windowSides(cx+bw*0.5f+0.16f, cz-2.f, 1.f);
-//     windowSides(cx+bw*0.5f+0.16f, cz+2.f, 1.f);
-
-//     // Front double door
-//     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
-//     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
-
-//     // Back double door
-//     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
-//     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
-
-//     // Raised dark brown roof
-//     { mat4 m = glm::translate(mat4(1), {cx, bh + 0.75f, cz}); m = glm::scale(m, {bw + 1.4f, 0.55f, bd + 1.4f}); draw(mBox, m, vp, 6); }
-
-//     // Golf sign on top of roof - front side
-//     { mat4 m = glm::translate(mat4(1), {cx, bh + 1.55f, cz + 0.12f}); m = glm::scale(m, {4.8f, 1.4f, 0.12f}); drawWithTex(mBox, m, vp, 15, texGolfSign); }
-
-//     // Golf sign on top of roof - back side
-//     { mat4 m = glm::translate(mat4(1), {cx, bh + 1.55f, cz - 0.12f}); m = glm::scale(m, {4.8f, 1.4f, 0.12f}); drawWithTex(mBox, m, vp, 15, texGolfSign); }
-
-//     // Sign poles
-//     { mat4 m = glm::translate(mat4(1), {cx - 2.0f, bh + 1.0f, cz}); m = glm::scale(m, {0.12f, 1.2f, 0.12f}); draw(mBox, m, vp, 13); }
-//     { mat4 m = glm::translate(mat4(1), {cx + 2.0f, bh + 1.0f, cz}); m = glm::scale(m, {0.12f, 1.2f, 0.12f}); draw(mBox, m, vp, 13); }
-// }
 static void drawRestaurant(const mat4& vp){
     float cx = 0.f, cz = 0.f;
     float bw = 10.f, bd = 8.f, bh = 3.5f;
 
-    // Floor
     { mat4 m = glm::translate(mat4(1), {cx, 0.01f, cz}); m = glm::scale(m, {bw, 1, bd}); draw(mQuad, m, vp, 9); }
 
-    // Walls
     { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz-bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
     { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz+bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
     { mat4 m = glm::translate(mat4(1), {cx-bw*.5f, bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
@@ -1072,7 +991,6 @@ static void drawRestaurant(const mat4& vp){
         { mat4 m = glm::translate(mat4(1), {x+off, y, z}); m = glm::scale(m, {0.12f, 0.12f, 1.6f}); draw(mBox, m, vp, 13); }
     };
 
-    // Windows
     windowFrontBack(cx-2.8f, cz+bd*0.5f+0.16f, 1.f);
     windowFrontBack(cx+2.8f, cz+bd*0.5f+0.16f, 1.f);
     windowFrontBack(cx-2.8f, cz-bd*0.5f-0.16f, -1.f);
@@ -1083,28 +1001,23 @@ static void drawRestaurant(const mat4& vp){
     windowSides(cx+bw*0.5f+0.16f, cz-2.f, 1.f);
     windowSides(cx+bw*0.5f+0.16f, cz+2.f, 1.f);
 
-    // Front double door
     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
 
-    // Back double door
     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
 
-    // Realistic lifted roof + higher sign
     float roofY = bh + 0.15f;
     float roofW = bw + 1.8f;
     float roofD = bd + 1.8f;
     float roofH = 2.0f;
 
-    // Thin dark roof base / shadow line
     {
         mat4 m = glm::translate(mat4(1), {cx, bh + 0.03f, cz});
         m = glm::scale(m, {roofW, 0.18f, roofD});
         draw(mBox, m, vp, 6);
     }
 
-    // Left roof slope
     {
         mat4 m = glm::translate(mat4(1), {cx - roofW * 0.255f, roofY + roofH * 0.36f, cz});
         m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
@@ -1112,7 +1025,6 @@ static void drawRestaurant(const mat4& vp){
         draw(mBox, m, vp, 6);
     }
 
-    // Right roof slope
     {
         mat4 m = glm::translate(mat4(1), {cx + roofW * 0.255f, roofY + roofH * 0.36f, cz});
         m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
@@ -1120,7 +1032,6 @@ static void drawRestaurant(const mat4& vp){
         draw(mBox, m, vp, 6);
     }
 
-    // Roof tile ribs
     for(int i = -5; i <= 5; ++i){
         float z = cz + i * (roofD / 11.0f);
 
@@ -1135,14 +1046,12 @@ static void drawRestaurant(const mat4& vp){
         draw(mBox, m2, vp, 7);
     }
 
-    // Center ridge cap
     {
         mat4 m = glm::translate(mat4(1), {cx, roofY + roofH * 0.78f, cz});
         m = glm::scale(m, {0.32f, 0.32f, roofD + 0.35f});
         draw(mBox, m, vp, 7);
     }
 
-    // Front gable trim
     {
         mat4 m = glm::translate(mat4(1), {cx - 1.55f, bh + 0.75f, cz + roofD * 0.505f});
         m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
@@ -1156,7 +1065,6 @@ static void drawRestaurant(const mat4& vp){
         draw(mBox, m, vp, 7);
     }
 
-    // Back gable trim
     {
         mat4 m = glm::translate(mat4(1), {cx - 1.55f, bh + 0.75f, cz - roofD * 0.505f});
         m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
@@ -1170,21 +1078,18 @@ static void drawRestaurant(const mat4& vp){
         draw(mBox, m, vp, 7);
     }
 
-    // Higher golf sign front
     {
         mat4 m = glm::translate(mat4(1), {cx, bh + 3.15f, cz + 0.16f});
         m = glm::scale(m, {5.0f, 1.35f, 0.12f});
         drawWithTex(mBox, m, vp, 15, texGolfSign);
     }
 
-    // Higher golf sign back
     {
         mat4 m = glm::translate(mat4(1), {cx, bh + 3.15f, cz - 0.16f});
         m = glm::scale(m, {5.0f, 1.35f, 0.12f});
         drawWithTex(mBox, m, vp, 15, texGolfSign);
     }
 
-    // Taller sign poles
     {
         mat4 m = glm::translate(mat4(1), {cx - 2.0f, bh + 2.2f, cz});
         m = glm::scale(m, {0.11f, 2.2f, 0.11f});
