@@ -281,6 +281,49 @@ static Mesh makeTrapezoid(){
     return upload(V,{0,1,2,0,2,3});
 }
 
+// Tapered cylinder: radius varies linearly from rBot (y=0) to rTop (y=1).
+// Normals are tilted to match the cone-frustum surface, giving correct shading.
+static Mesh makeTaperedCylinder(float rBot, float rTop, int sl = 18){
+    vector<Vertex> V; vector<unsigned> I;
+    float slope = rBot - rTop;  // radius decrease per unit height
+    for(int i = 0; i <= sl; i++){
+        float th = 2*PI*i/sl, ct = cosf(th), st = sinf(th);
+        vec3 n = glm::normalize(vec3(ct, slope, st));
+        V.push_back({{rBot*ct,   0, rBot*st}, n, {(float)i/sl, 0}});
+        V.push_back({{rTop*ct, 1.f, rTop*st}, n, {(float)i/sl, 1}});
+    }
+    for(int i = 0; i < sl; i++){
+        unsigned a=2*i, b=2*i+1, c=2*(i+1), d=2*(i+1)+1;
+        I.insert(I.end(), {a, b, c, b, d, c});
+    }
+    return upload(V, I);
+}
+
+// River / pond strip mesh — flat XZ strip following a centerline with per-point width.
+// yOff: world-space Y at which all vertices are placed.
+static Mesh makeRiverStrip(const vector<vec3>& pts, const vector<float>& widths, float yOff){
+    vector<Vertex> V; vector<unsigned> I;
+    int n = (int)pts.size();
+    for(int i = 0; i < n; i++){
+        vec3 dir;
+        if(i == 0)        dir = glm::normalize(pts[1]   - pts[0]);
+        else if(i == n-1) dir = glm::normalize(pts[n-1] - pts[n-2]);
+        else              dir = glm::normalize(pts[i+1] - pts[i-1]);
+        vec3 perp = vec3(-dir.z, 0.f, dir.x);   // perpendicular in XZ plane
+        float hw = widths[i] * 0.5f;
+        float u  = (float)i / (n - 1);
+        vec3 L = {pts[i].x - perp.x*hw, yOff, pts[i].z - perp.z*hw};
+        vec3 R = {pts[i].x + perp.x*hw, yOff, pts[i].z + perp.z*hw};
+        V.push_back({L, {0,1,0}, {u, 0.f}});
+        V.push_back({R, {0,1,0}, {u, 1.f}});
+    }
+    for(int i = 0; i < n-1; i++){
+        unsigned b = 2*i;
+        I.insert(I.end(), {b, b+2, b+1, b+1, b+2, b+3});
+    }
+    return upload(V, I);
+}
+
 static GLuint loadTexture(const char* path){
     GLuint tex;
     glGenTextures(1, &tex);
@@ -308,6 +351,8 @@ static Mesh      mQuad, mBox, mSphere, mCylinder, mTorus, mTrap, mSkybox, mCircl
 static Mesh      mTerrainHills;
 static Mesh      mVQuad;        // vertical quad for billboards
 static Mesh      mRockyBoulder; // low-poly displaced sphere
+static Mesh      mRiver, mRiverBank;
+static Mesh      mTaperedCyl;
 
 // ─── Texture handles ──────────────────────────────────────────────────────────
 static GLuint texRock[8];       // rocks/rock1-8.bmp
@@ -345,6 +390,8 @@ static vec3 LAMP_POSITIONS[] = {
     {  6.f,  0.f,   5.f},
     { -6.f,  0.f,  -5.f},
     {  6.f,  0.f,  -5.f},
+    // Pond lamp (right bank)
+    { 24.f,  0.f,  15.f},
 };
 static const int LAMP_COUNT = (int)(sizeof(LAMP_POSITIONS)/sizeof(LAMP_POSITIONS[0]));
 
@@ -646,21 +693,18 @@ static void drawBoulder(vec3 pos, float r, GLuint tex, const mat4& vp){
     drawWithTex(mRockyBoulder, m, vp, 10, tex);
 }
 
-// Palm tree: textured cylinder trunk segments + crossed-billboard leaf crown
+// Palm tree: single tapered trunk (no segment joints) + crossed-billboard leaf crown
 static void drawPalmTree(vec3 base, float height, GLuint barkTex, GLuint crownTex, const mat4& vp){
-    const int nSeg = 4;
-    float segH = height / nSeg;
-    vec3 cur = base;
-    float lean = height * 0.018f;  // slight lean per segment along +X
-    for(int s = 0; s < nSeg; s++){
-        float r = (0.18f - s*0.028f);  // taper: 0.18 at base → 0.10 at top
-        mat4 m = glm::translate(mat4(1), cur + vec3(0, segH*0.5f, 0));
-        m = glm::scale(m, {r*2.f, segH, r*2.f});
-        drawWithTex(mCylinder, m, vp, 11, barkTex);
-        cur += vec3(lean, segH, 0.f);
+    // leanRad reproduces the same +X lean as the old 4-segment code (0.018*4 = 0.072 rad)
+    const float leanRad = 0.072f;
+    {
+        mat4 m = glm::translate(mat4(1), base);
+        m = glm::rotate(m, -leanRad, {0.f, 0.f, 1.f});  // negative → top tilts toward +X
+        m = glm::scale(m, {1.f, height, 1.f});
+        drawWithTex(mTaperedCyl, m, vp, 11, barkTex);
     }
-    // Crown: 3 crossed vertical quads at 0°, 60°, 120° — visible from every angle
-    vec3 crown = cur;
+    // Crown sits at the true tip of the leaned trunk
+    vec3 crown = base + vec3(sinf(leanRad)*height, cosf(leanRad)*height, 0.f);
     float cw = height * 0.60f, ch = height * 0.50f;
     for(int k = 0; k < 3; k++){
         float ang = (float)k * (PI / 3.0f);
@@ -954,6 +998,37 @@ int main(){
     mVQuad        = makeVQuad();
     mRockyBoulder = makeRockyBoulder();
     mTerrainHills = makeHillTerrain(33.f, 38.f, 16.f, 14.f, 32, 28);
+    mTaperedCyl   = makeTaperedCylinder(0.18f, 0.10f, 18);
+
+    // ── River + pond meshes ───────────────────────────────────────────────────
+    {
+        // Right edge of trapezoid at z=-22: x = 40 + (55-22)/11 = 43.0 exactly.
+        // Exit bends west to be roughly parallel with the bottom edge (z=55),
+        // then stops flush at the lower-left corner area.
+        vector<vec3> pts = {
+            {43.f, 0,  -22.f},   // entry: flush with right course edge
+            {37.f, 0,  -18.f},
+            {29.f, 0,  -11.f},
+            {22.f, 0,   -4.f},
+            {17.f, 0,    3.f},   // right of restaurant
+            {15.5f,0,   10.f},   // pond transition start
+            {14.f, 0,   16.f},   // pond centre
+            {13.f, 0,   23.f},   // pond transition end
+            { 9.f, 0,   31.f},
+            { 2.f, 0,   37.f},
+            {-5.f, 0,   41.f},   // exit-bend starts here — turning strongly westward
+            {-11.f,0,   44.f},
+            {-19.f,0,  46.5f},
+            {-28.f,0,  48.5f},   // ~77° west — near-parallel to bottom edge
+            {-36.f,0,   50.f},   // ~79° west
+            {-42.f,0,   51.f},   // ~82° west — nearly parallel
+            {-49.f,0,  51.5f},   // ~86° west — exits west edge flush, parallel to bottom
+        };
+        vector<float> ww = {3.5f,3.5f,3.5f,3.5f,3.5f, 8.f,16.f,8.f, 3.5f,3.5f,3.5f,3.5f,3.5f,3.5f,3.5f,3.5f,3.5f};
+        vector<float> bw; for(float w : ww) bw.push_back(w + 4.f);
+        mRiverBank = makeRiverStrip(pts, bw, 0.001f);  // dirt banks — slightly above grass
+        mRiver     = makeRiverStrip(pts, ww, 0.003f);  // water — above bank so it's visible
+    }
 
     // ── Load textures ──────────────────────────────────────────────────────────
     for(int i=0; i<8; i++){
@@ -1165,8 +1240,26 @@ int main(){
         for(int i = 0; i < LAMP_COUNT; i++)
             drawLampPost(LAMP_POSITIONS[i], vp);
 
+        // Pond island — drawn before water so depth test blocks water over the island
+        { mat4 m = glm::translate(mat4(1), {14.f, -0.3f, 16.f});
+          m = glm::scale(m, {3.5f, 0.85f, 3.5f});
+          draw(mSphere, m, vp, 4); }  // sand/gravel dome; island top ≈ y=0.55
+
+        // River + pond (drawn after island so water fills around the dome)
+        draw(mRiverBank, mat4(1), vp, 23);  // dirt/soil banks
+        draw(mRiver,     mat4(1), vp,  5);  // animated water
+
+        // Island vegetation — boulders, palm and plants grouped on the small hill
+        drawBoulder({15.8f, 0.45f, 15.2f}, 0.30f, texRock[1], vp);
+        drawBoulder({12.5f, 0.38f, 17.2f}, 0.25f, texRock[3], vp);
+        drawPalmTree({14.f,  0.52f, 16.5f}, 4.5f, texBark, texPalmCrown[0], vp);
+        drawBillboard({15.3f, 0.35f, 15.0f}, 0.45f, 0.75f, texWeed[0], vp);
+        drawBillboard({12.8f, 0.28f, 17.5f}, 0.40f, 0.65f, texWeed[2], vp);
+        drawBillboard({14.8f, 0.30f, 14.3f}, 0.50f, 0.70f, texWeed[1], vp);
+        drawBillboard({13.5f, 0.38f, 17.9f}, 1.0f,  1.3f,  texShrub[0], vp);
+
         // Hill terrain — upper-right corner (smoothly blends into flat ground)
-        draw(mTerrainHills, mat4(1), vp, 2);
+        draw(mTerrainHills, mat4(1), vp, 23);
 
         // Boulders — partially embedded (center at terrainH + r*0.35, sinking ~50% in)
         drawBoulder({38.f, terrainH(38.f,43.f)+3.2f*0.35f, 43.f}, 3.2f, texRock[0], vp);
@@ -1249,6 +1342,7 @@ int main(){
     freeMesh(mQuad); freeMesh(mBox); freeMesh(mSphere);
     freeMesh(mCylinder); freeMesh(mTorus); freeMesh(mTrap); freeMesh(mCircle);
     freeMesh(mVQuad); freeMesh(mRockyBoulder); freeMesh(mTerrainHills);
+    freeMesh(mRiver); freeMesh(mRiverBank); freeMesh(mTaperedCyl);
     glDeleteTextures(8, texRock);
     glDeleteTextures(1, &texBark);
     glDeleteTextures(3, texPalmCrown);

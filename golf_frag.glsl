@@ -90,9 +90,9 @@ vec3 calcSurface(){
         float n = fbm(vUV * 22.0);
         col = vec3(0.88, 0.78, 0.52) * (0.75 + 0.25*n);
     } else if (uSurface == 5){
-        // Water hazard — animated
+        // Water — animated, muted grey-blue
         float dep = 0.55 + 0.15*sin(vUV.x*7.0+uTime);
-        col = vec3(0.05, 0.22+0.10*dep, 0.65+0.15*dep);
+        col = vec3(0.26+0.06*dep, 0.36+0.08*dep, 0.50+0.08*dep);
     } else if (uSurface == 6){
         // Wood (bridges/obstacles)
         float grain = fbm(vec2(vUV.x*2.0, vUV.y*30.0));
