@@ -26,7 +26,9 @@ in vec2 vUV;
 // 19 = cup/hole rim (black)
 // 20 = restaurant roof (terracotta)
 
-uniform int   uSurface;
+uniform int       uSurface;
+uniform sampler2D uTex;
+uniform int       uUseTex;  // 1 = sample uTex and override calcSurface colour
 uniform float uTime;
 uniform vec3  uLightDir;      // sun direction (world-space)
 uniform vec3  uLightColor;    // sun color
@@ -37,6 +39,11 @@ uniform int   uLampCount;
 uniform vec3  uLampPos[32];
 uniform vec3  uLampColor;
 uniform int   uLampsOn;       // 1 if night
+uniform int   uSpotOn;        // 1 = spotlight active
+uniform vec3  uSpotPos;       // drone world position
+uniform vec3  uSpotDir;       // normalised direction
+uniform float uSpotCutoff;    // cos of cone half-angle
+uniform float uSpotOuter;     // cos of outer cone (soft edge)
 
 out vec4 FragColor;
 
@@ -167,6 +174,14 @@ vec3 calcSurface(){
         // Soil / dirt base
         float n = fbm(vUV * 7.0);
         col = vec3(0.38+0.12*n, 0.28+0.07*n, 0.17+0.05*n);
+    } else if (uSurface == 24){
+        // Drone body — charcoal grey
+        float n = fbm(vUV * 8.0) * 0.04;
+        col = vec3(0.25+n, 0.25+n, 0.28+n);
+    } else if (uSurface == 25){
+        // Drone propellers — dark grey
+        float n = fbm(vUV * 6.0) * 0.03;
+        col = vec3(0.16+n, 0.16+n, 0.18+n);
     } else {
         col = vec3(1.0, 0.0, 1.0); // missing surface — magenta
     }
@@ -186,6 +201,13 @@ void main(){
     }
 
     vec3 col  = calcSurface();
+
+    // Texture override (rock BMP or plant PNG with alpha cutout)
+    if (uUseTex == 1){
+        vec4 t = texture(uTex, vUV);
+        if (t.a < 0.15) discard;
+        col = t.rgb;
+    }
 
     // Emissive — skip lighting
     if (uSurface == 14){
@@ -223,6 +245,17 @@ void main(){
             float att  = 1.0 / (1.0 + 0.18*dist + 0.06*dist*dist);
             lighting += col * diff * att * uLampColor;
         }
+    }
+
+	if (uSpotOn == 1){
+        vec3  toFrag  = vFragPos - uSpotPos;
+        vec3  sdir    = normalize(uSpotDir);
+        float cosA    = dot(normalize(toFrag), sdir);
+        float dist    = length(toFrag);
+        float att     = 1.0 / (1.0 + 0.05*dist + 0.01*dist*dist);
+        float cone    = smoothstep(uSpotOuter, uSpotCutoff, cosA);
+        float diff    = max(dot(norm, -sdir), 0.0);
+        lighting += col * diff * att * cone * vec3(1.0, 0.97, 0.88) * 2.5;
     }
 
     FragColor = vec4(lighting, 1.0);
