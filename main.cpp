@@ -60,6 +60,7 @@ using glm::mat4;
 static const float PI    = 3.14159265358979f;
 static const int   WIN_W = 1280;
 static const int   WIN_H = 800;
+static GLuint texGolfSign;
 
 // ─── Mesh helpers ────────────────────────────────────────────────────────────
 Mesh upload(const vector<Vertex>& V, const vector<unsigned>& I){
@@ -953,62 +954,85 @@ static void drawTable(vec3 pos, const mat4& vp){
     { mat4 m = glm::translate(mat4(1), pos + vec3(0, 1.18f, 0)); m = glm::scale(m, {1.2f, 0.06f, 0.90f}); draw(mBox, m, vp, 6); }
 }
 
+
+
 static void drawRestaurant(const mat4& vp){
     float cx = 0.f, cz = 0.f;
     float bw = 10.f, bd = 8.f, bh = 3.5f;
 
+    // Floor
     { mat4 m = glm::translate(mat4(1), {cx, 0.01f, cz}); m = glm::scale(m, {bw, 1, bd}); draw(mQuad, m, vp, 9); }
 
+    // Walls
     { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz-bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
     { mat4 m = glm::translate(mat4(1), {cx, bh*.5f, cz+bd*.5f}); m = glm::scale(m, {bw, bh, .28f}); draw(mBox, m, vp, 8); }
     { mat4 m = glm::translate(mat4(1), {cx-bw*.5f, bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
     { mat4 m = glm::translate(mat4(1), {cx+bw*.5f, bh*.5f, cz}); m = glm::scale(m, {.28f, bh, bd}); draw(mBox, m, vp, 8); }
 
-    auto windowFrontBack = [&](float x, float z){
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {1.5f, 1.2f, 0.05f}); draw(mBox, m, vp, 15); }
+    auto windowFrontBack = [&](float x, float z, float dir){
+        float y = bh * 0.6f;
+        float off = 0.08f * dir;
 
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f+0.65f, z}); m = glm::scale(m, {1.8f, 0.12f, 0.08f}); draw(mBox, m, vp, 13); }
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f-0.65f, z}); m = glm::scale(m, {1.8f, 0.12f, 0.08f}); draw(mBox, m, vp, 13); }
-        { mat4 m = glm::translate(mat4(1), {x-0.85f, bh*0.6f, z}); m = glm::scale(m, {0.12f, 1.4f, 0.08f}); draw(mBox, m, vp, 13); }
-        { mat4 m = glm::translate(mat4(1), {x+0.85f, bh*0.6f, z}); m = glm::scale(m, {0.12f, 1.4f, 0.08f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, y, z}); m = glm::scale(m, {1.5f, 1.2f, 0.05f}); draw(mBox, m, vp, 15); }
 
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {0.10f, 1.3f, 0.09f}); draw(mBox, m, vp, 13); }
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {1.6f, 0.10f, 0.09f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, y+0.65f, z+off}); m = glm::scale(m, {1.8f, 0.12f, 0.10f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, y-0.65f, z+off}); m = glm::scale(m, {1.8f, 0.12f, 0.10f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x-0.85f, y, z+off}); m = glm::scale(m, {0.12f, 1.4f, 0.10f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x+0.85f, y, z+off}); m = glm::scale(m, {0.12f, 1.4f, 0.10f}); draw(mBox, m, vp, 13); }
+
+        { mat4 m = glm::translate(mat4(1), {x, y, z+off}); m = glm::scale(m, {0.12f, 1.3f, 0.12f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, y, z+off}); m = glm::scale(m, {1.6f, 0.12f, 0.12f}); draw(mBox, m, vp, 13); }
     };
 
-    auto windowSides = [&](float x, float z){
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {0.05f, 1.2f, 1.5f}); draw(mBox, m, vp, 15); }
+    auto windowSides = [&](float x, float z, float dir){
+        float y = bh * 0.6f;
+        float off = 0.08f * dir;
 
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f+0.65f, z}); m = glm::scale(m, {0.08f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f-0.65f, z}); m = glm::scale(m, {0.08f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z-0.85f}); m = glm::scale(m, {0.08f, 1.4f, 0.12f}); draw(mBox, m, vp, 13); }
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z+0.85f}); m = glm::scale(m, {0.08f, 1.4f, 0.12f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x, y, z}); m = glm::scale(m, {0.05f, 1.2f, 1.5f}); draw(mBox, m, vp, 15); }
 
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {0.09f, 1.3f, 0.10f}); draw(mBox, m, vp, 13); }
-        { mat4 m = glm::translate(mat4(1), {x, bh*0.6f, z}); m = glm::scale(m, {0.09f, 0.10f, 1.6f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x+off, y+0.65f, z}); m = glm::scale(m, {0.10f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x+off, y-0.65f, z}); m = glm::scale(m, {0.10f, 0.12f, 1.8f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x+off, y, z-0.85f}); m = glm::scale(m, {0.10f, 1.4f, 0.12f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x+off, y, z+0.85f}); m = glm::scale(m, {0.10f, 1.4f, 0.12f}); draw(mBox, m, vp, 13); }
+
+        { mat4 m = glm::translate(mat4(1), {x+off, y, z}); m = glm::scale(m, {0.12f, 1.3f, 0.12f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {x+off, y, z}); m = glm::scale(m, {0.12f, 0.12f, 1.6f}); draw(mBox, m, vp, 13); }
     };
 
-    windowFrontBack(cx-2.8f, cz+bd*0.5f+0.16f);
-    windowFrontBack(cx+2.8f, cz+bd*0.5f+0.16f);
+    // Windows
+    windowFrontBack(cx-2.8f, cz+bd*0.5f+0.16f, 1.f);
+    windowFrontBack(cx+2.8f, cz+bd*0.5f+0.16f, 1.f);
 
-    windowFrontBack(cx-2.8f, cz-bd*0.5f-0.16f);
-    windowFrontBack(cx+2.8f, cz-bd*0.5f-0.16f);
+    windowFrontBack(cx-2.8f, cz-bd*0.5f-0.16f, -1.f);
+    windowFrontBack(cx+2.8f, cz-bd*0.5f-0.16f, -1.f);
 
-    windowSides(cx-bw*0.5f-0.16f, cz-2.f);
-    windowSides(cx-bw*0.5f-0.16f, cz+2.f);
+    windowSides(cx-bw*0.5f-0.16f, cz-2.f, -1.f);
+    windowSides(cx-bw*0.5f-0.16f, cz+2.f, -1.f);
 
-    windowSides(cx+bw*0.5f+0.16f, cz-2.f);
-    windowSides(cx+bw*0.5f+0.16f, cz+2.f);
+    windowSides(cx+bw*0.5f+0.16f, cz-2.f, 1.f);
+    windowSides(cx+bw*0.5f+0.16f, cz+2.f, 1.f);
 
+    // Front double door
     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
-    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.25f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
+    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz+bd*0.5f+0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
 
+    // Back double door
     { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
-    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.25f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
+    { mat4 m = glm::translate(mat4(1), {cx, 1.35f, cz-bd*0.5f-0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
 
-    { mat4 m = glm::translate(mat4(1), {cx, bh+.2f, cz}); m = glm::scale(m, {bw+.6f, .4f, bd+.6f}); draw(mBox, m, vp, 20); }
+    // Raised dark brown roof
+    { mat4 m = glm::translate(mat4(1), {cx, bh + 0.75f, cz}); m = glm::scale(m, {bw + 1.4f, 0.55f, bd + 1.4f}); draw(mBox, m, vp, 6); }
+
+    // Golf sign on top of roof - front side
+    { mat4 m = glm::translate(mat4(1), {cx, bh + 1.55f, cz + 0.12f}); m = glm::scale(m, {4.8f, 1.4f, 0.12f}); drawWithTex(mBox, m, vp, 15, texGolfSign); }
+
+    // Golf sign on top of roof - back side
+    { mat4 m = glm::translate(mat4(1), {cx, bh + 1.55f, cz - 0.12f}); m = glm::scale(m, {4.8f, 1.4f, 0.12f}); drawWithTex(mBox, m, vp, 15, texGolfSign); }
+
+    // Sign poles
+    { mat4 m = glm::translate(mat4(1), {cx - 2.0f, bh + 1.0f, cz}); m = glm::scale(m, {0.12f, 1.2f, 0.12f}); draw(mBox, m, vp, 13); }
+    { mat4 m = glm::translate(mat4(1), {cx + 2.0f, bh + 1.0f, cz}); m = glm::scale(m, {0.12f, 1.2f, 0.12f}); draw(mBox, m, vp, 13); }
 }
-
 static Mesh makeSkyboxMesh(){
     float v[]={
        -1, 1,-1,-1,-1,-1, 1,-1,-1, 1,-1,-1, 1, 1,-1,-1, 1,-1,
@@ -1058,6 +1082,7 @@ int main(){
     gProg   = LoadShaders("golf_vert.glsl","golf_frag.glsl");
     skyProg = LoadShaders("sky_vert.glsl", "sky_frag.glsl");
     skyTex  = loadTexture("day_sky.png");
+    texGolfSign = loadTexture("textures/restaurants/image.png");
 
     mQuad     = makeQuad();
     mBox      = makeBox();
