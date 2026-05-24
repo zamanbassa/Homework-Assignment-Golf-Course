@@ -1838,9 +1838,29 @@ int main(){
         drawPalmTree({-27.f,0.f,-13.f},5.5f,texBark,texPalmCrown[0],vp);
         // Between H4 and H5
         drawPalmTree({-29.f,0.f,-27.f},5.0f,texBark,texPalmCrown[0],vp);
-        // Near H6 / south-west
+        drawBoulder({-35.0f,0.22f,-11.2f},0.42f,texRock[1],vp);
+        drawBillboard({-35.8f,0.f,-12.0f},0.90f,1.20f,texAgave,vp);
+        drawBillboard({-34.4f,0.f,-10.8f},0.80f,1.05f,texFlax,vp);
+        drawLowPalmTree({-36.2f,0.f,-12.5f},2.8f,texPalmCrown[0],vp);
+        drawBillboard({-34.5f,0.f,-12.8f},1.10f,1.40f,texShrub[1],vp);
+
+        drawBoulder({-31.0f,0.22f,-29.6f},0.40f,texRock[5],vp);
+        drawBillboard({-31.8f,0.f,-30.3f},0.95f,1.30f,texAgave,vp);
+        drawBillboard({-30.3f,0.f,-28.9f},0.85f,1.10f,texFlax,vp);
+        drawBillboard({-31.2f,0.f,-27.8f},1.20f,1.65f,texShrub[0],vp);
+        drawLowPalmTree({-32.5f,0.f,-30.0f},3.0f,texPalmCrown[0],vp);
+
+        drawBoulder({-31.0f,0.22f,-39.2f},0.40f,texRock[3],vp);
+        drawBillboard({-30.2f,0.f,-39.8f},1.00f,1.30f,texFlax,vp);
+        drawBillboard({-32.0f,0.f,-38.5f},0.85f,1.10f,texAgave,vp);
+        drawBillboard({-31.8f,0.f,-40.7f},1.30f,1.55f,texShrub[1],vp);
+
         drawPalmTree({-22.f,0.f,-41.f},5.5f,texBark,texPalmCrown[0],vp);
-        // Central south area (between river and H7/H8)
+        drawBoulder({-34.8f,0.22f,-32.2f},0.45f,texRock[2],vp);
+        drawBillboard({-35.5f,0.f,-31.3f},0.95f,1.2f,texAgave,vp);
+        drawBillboard({-33.8f,0.f,-33.0f},0.80f,1.1f,texFlax,vp);
+        drawLowPalmTree({-33.2f,0.f,-35.0f},3.0f,texPalmCrown[0],vp);
+        drawBillboard({-32.5f,0.f,-32.8f},1.20f,1.40f,texShrub[1],vp);
         drawPalmTree({  6.f,0.f,-33.f},5.0f,texBark,texPalmCrown[0],vp);
         drawPalmTree({ 18.f,0.f,-28.f},5.5f,texBark,texPalmCrown[0],vp);
 
