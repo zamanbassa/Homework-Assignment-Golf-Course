@@ -9,6 +9,7 @@
 using glm::vec3;
 using glm::mat4;
 
+
 // Defined in main.cpp (not static so Hole translation units can call it)
 void draw(const Mesh& m, const mat4& model, const mat4& vp, int surf);
 
