@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <cstring>
 #include <vector>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -48,6 +49,12 @@
 #include "Hole10.h"
 #include "Hole11.h"
 #include "Hole12.h"
+#include "Hole13.h"
+#include "Hole14.h"
+#include "Hole15.h"
+#include "Hole16.h"
+#include "Hole17.h"
+#include "Hole18.h"
 
 using namespace std;
 using glm::vec2;
@@ -164,6 +171,23 @@ Mesh makeQuad(){
         {{-0.5f,0, 0.5f},{0,1,0},{0,1}},
     };
     return upload(V,{0,1,2,0,2,3});
+}
+
+// Double-sided isosceles triangle in XY plane: base [-0.5,-0.5]→[0.5,-0.5], apex [0, 0.5]
+// Scale by (width, height, 1) to fit any gable face.
+static Mesh makeGableTri(){
+    vector<Vertex> V = {
+        // Front face (+Z normal): CCW from +Z
+        {{-0.5f,-0.5f,0.f},{0,0,1},{0.f,0.f}},
+        {{ 0.5f,-0.5f,0.f},{0,0,1},{1.f,0.f}},
+        {{  0.f, 0.5f,0.f},{0,0,1},{0.5f,1.f}},
+        // Back face (-Z normal): CCW from -Z (reverse winding)
+        {{-0.5f,-0.5f,0.f},{0,0,-1},{0.f,0.f}},
+        {{ 0.5f,-0.5f,0.f},{0,0,-1},{1.f,0.f}},
+        {{  0.f, 0.5f,0.f},{0,0,-1},{0.5f,1.f}},
+    };
+    vector<unsigned> I = {0,1,2, 3,5,4};
+    return upload(V,I);
 }
 
 // Vertical quad in XY plane, centred, 1×1
@@ -359,10 +383,115 @@ static GLuint loadTexture(const char* path){
     return tex;
 }
 
+// ─── HUD font (8×8 bitmap, ASCII 32-127, index = char-32) ───────────────────
+// MSB of each byte = leftmost pixel; bytes are rows top-to-bottom.
+static const unsigned char FONT8X8[96][8] = {
+    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, // 32 ' '
+    {0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00}, // 33 !
+    {0x36,0x36,0x00,0x00,0x00,0x00,0x00,0x00}, // 34 "
+    {0x36,0x36,0x7F,0x36,0x7F,0x36,0x36,0x00}, // 35 #
+    {0x0C,0x3E,0x03,0x1E,0x30,0x1F,0x0C,0x00}, // 36 $
+    {0x00,0x63,0x33,0x18,0x0C,0x66,0x63,0x00}, // 37 %
+    {0x1C,0x36,0x1C,0x6E,0x3B,0x33,0x6E,0x00}, // 38 &
+    {0x06,0x06,0x03,0x00,0x00,0x00,0x00,0x00}, // 39 '
+    {0x18,0x0C,0x06,0x06,0x06,0x0C,0x18,0x00}, // 40 (
+    {0x06,0x0C,0x18,0x18,0x18,0x0C,0x06,0x00}, // 41 )
+    {0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00}, // 42 *
+    {0x00,0x0C,0x0C,0x3F,0x0C,0x0C,0x00,0x00}, // 43 +
+    {0x00,0x00,0x00,0x00,0x00,0x0C,0x0C,0x06}, // 44 ,
+    {0x00,0x00,0x00,0x3F,0x00,0x00,0x00,0x00}, // 45 -
+    {0x00,0x00,0x00,0x00,0x00,0x0C,0x0C,0x00}, // 46 .
+    {0x60,0x30,0x18,0x0C,0x06,0x03,0x01,0x00}, // 47 /
+    {0x3E,0x63,0x73,0x7B,0x6F,0x67,0x3E,0x00}, // 48 0
+    {0x0C,0x0E,0x0C,0x0C,0x0C,0x0C,0x3F,0x00}, // 49 1
+    {0x1E,0x33,0x30,0x1C,0x06,0x33,0x3F,0x00}, // 50 2
+    {0x1E,0x33,0x30,0x1C,0x30,0x33,0x1E,0x00}, // 51 3
+    {0x38,0x3C,0x36,0x33,0x7F,0x30,0x78,0x00}, // 52 4
+    {0x3F,0x03,0x1F,0x30,0x30,0x33,0x1E,0x00}, // 53 5
+    {0x1C,0x06,0x03,0x1F,0x33,0x33,0x1E,0x00}, // 54 6
+    {0x3F,0x33,0x30,0x18,0x0C,0x0C,0x0C,0x00}, // 55 7
+    {0x1E,0x33,0x33,0x1E,0x33,0x33,0x1E,0x00}, // 56 8
+    {0x1E,0x33,0x33,0x3E,0x30,0x18,0x0E,0x00}, // 57 9
+    {0x00,0x0C,0x0C,0x00,0x00,0x0C,0x0C,0x00}, // 58 :
+    {0x00,0x0C,0x0C,0x00,0x00,0x0C,0x0C,0x06}, // 59 ;
+    {0x18,0x0C,0x06,0x03,0x06,0x0C,0x18,0x00}, // 60 <
+    {0x00,0x00,0x3F,0x00,0x00,0x3F,0x00,0x00}, // 61 =
+    {0x06,0x0C,0x18,0x30,0x18,0x0C,0x06,0x00}, // 62 >
+    {0x1E,0x33,0x30,0x18,0x0C,0x00,0x0C,0x00}, // 63 ?
+    {0x3E,0x63,0x7B,0x7B,0x7B,0x03,0x1E,0x00}, // 64 @
+    {0x0C,0x1E,0x33,0x33,0x3F,0x33,0x33,0x00}, // 65 A
+    {0x3F,0x66,0x66,0x3E,0x66,0x66,0x3F,0x00}, // 66 B
+    {0x3C,0x66,0x03,0x03,0x03,0x66,0x3C,0x00}, // 67 C
+    {0x1F,0x36,0x66,0x66,0x66,0x36,0x1F,0x00}, // 68 D
+    {0x7F,0x46,0x16,0x1E,0x16,0x46,0x7F,0x00}, // 69 E
+    {0x7F,0x46,0x16,0x1E,0x16,0x06,0x0F,0x00}, // 70 F
+    {0x3C,0x66,0x03,0x03,0x73,0x66,0x7C,0x00}, // 71 G
+    {0x33,0x33,0x33,0x3F,0x33,0x33,0x33,0x00}, // 72 H
+    {0x1E,0x0C,0x0C,0x0C,0x0C,0x0C,0x1E,0x00}, // 73 I
+    {0x78,0x30,0x30,0x30,0x33,0x33,0x1E,0x00}, // 74 J
+    {0x67,0x66,0x36,0x1E,0x36,0x66,0x67,0x00}, // 75 K
+    {0x0F,0x06,0x06,0x06,0x46,0x66,0x7F,0x00}, // 76 L
+    {0x63,0x77,0x7F,0x7F,0x6B,0x63,0x63,0x00}, // 77 M
+    {0x63,0x67,0x6F,0x7B,0x73,0x63,0x63,0x00}, // 78 N
+    {0x1C,0x36,0x63,0x63,0x63,0x36,0x1C,0x00}, // 79 O
+    {0x3F,0x66,0x66,0x3E,0x06,0x06,0x0F,0x00}, // 80 P
+    {0x1E,0x33,0x33,0x33,0x3B,0x1E,0x38,0x00}, // 81 Q
+    {0x3F,0x66,0x66,0x3E,0x36,0x66,0x67,0x00}, // 82 R
+    {0x1E,0x33,0x07,0x0E,0x38,0x33,0x1E,0x00}, // 83 S
+    {0x3F,0x2D,0x0C,0x0C,0x0C,0x0C,0x1E,0x00}, // 84 T
+    {0x33,0x33,0x33,0x33,0x33,0x33,0x3F,0x00}, // 85 U
+    {0x33,0x33,0x33,0x33,0x33,0x1E,0x0C,0x00}, // 86 V
+    {0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00}, // 87 W
+    {0x63,0x63,0x36,0x1C,0x1C,0x36,0x63,0x00}, // 88 X
+    {0x33,0x33,0x33,0x1E,0x0C,0x0C,0x1E,0x00}, // 89 Y
+    {0x7F,0x63,0x31,0x18,0x4C,0x66,0x7F,0x00}, // 90 Z
+    {0x1E,0x06,0x06,0x06,0x06,0x06,0x1E,0x00}, // 91 [
+    {0x03,0x06,0x0C,0x18,0x30,0x60,0x40,0x00}, // 92 backslash
+    {0x1E,0x18,0x18,0x18,0x18,0x18,0x1E,0x00}, // 93 ]
+    {0x08,0x1C,0x36,0x63,0x00,0x00,0x00,0x00}, // 94 ^
+    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF}, // 95 _
+    {0x0C,0x0C,0x18,0x00,0x00,0x00,0x00,0x00}, // 96 `
+    {0x00,0x00,0x1E,0x30,0x3E,0x33,0x6E,0x00}, // 97 a
+    {0x07,0x06,0x06,0x3E,0x66,0x66,0x3B,0x00}, // 98 b
+    {0x00,0x00,0x1E,0x33,0x03,0x33,0x1E,0x00}, // 99 c
+    {0x38,0x30,0x30,0x3E,0x33,0x33,0x6E,0x00}, // 100 d
+    {0x00,0x00,0x1E,0x33,0x3F,0x03,0x1E,0x00}, // 101 e
+    {0x1C,0x36,0x06,0x0F,0x06,0x06,0x0F,0x00}, // 102 f
+    {0x00,0x00,0x6E,0x33,0x33,0x3E,0x30,0x1F}, // 103 g
+    {0x07,0x06,0x36,0x6E,0x66,0x66,0x67,0x00}, // 104 h
+    {0x0C,0x00,0x0E,0x0C,0x0C,0x0C,0x1E,0x00}, // 105 i
+    {0x30,0x00,0x30,0x30,0x30,0x33,0x33,0x1E}, // 106 j
+    {0x07,0x06,0x66,0x36,0x1E,0x36,0x67,0x00}, // 107 k
+    {0x0E,0x0C,0x0C,0x0C,0x0C,0x0C,0x1E,0x00}, // 108 l
+    {0x00,0x00,0x33,0x7F,0x7F,0x6B,0x63,0x00}, // 109 m
+    {0x00,0x00,0x1F,0x33,0x33,0x33,0x33,0x00}, // 110 n
+    {0x00,0x00,0x1E,0x33,0x33,0x33,0x1E,0x00}, // 111 o
+    {0x00,0x00,0x3B,0x66,0x66,0x3E,0x06,0x0F}, // 112 p
+    {0x00,0x00,0x6E,0x33,0x33,0x3E,0x30,0x78}, // 113 q
+    {0x00,0x00,0x3B,0x6E,0x66,0x06,0x0F,0x00}, // 114 r
+    {0x00,0x00,0x3E,0x03,0x1E,0x30,0x1F,0x00}, // 115 s
+    {0x08,0x0C,0x3E,0x0C,0x0C,0x2C,0x18,0x00}, // 116 t
+    {0x00,0x00,0x33,0x33,0x33,0x33,0x6E,0x00}, // 117 u
+    {0x00,0x00,0x33,0x33,0x33,0x1E,0x0C,0x00}, // 118 v
+    {0x00,0x00,0x63,0x6B,0x7F,0x7F,0x36,0x00}, // 119 w
+    {0x00,0x00,0x63,0x36,0x1C,0x36,0x63,0x00}, // 120 x
+    {0x00,0x00,0x33,0x33,0x33,0x3E,0x30,0x1F}, // 121 y
+    {0x00,0x00,0x3F,0x19,0x0C,0x26,0x3F,0x00}, // 122 z
+    {0x38,0x0C,0x0C,0x07,0x0C,0x0C,0x38,0x00}, // 123 {
+    {0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00}, // 124 |
+    {0x07,0x0C,0x0C,0x38,0x0C,0x0C,0x07,0x00}, // 125 }
+    {0x6E,0x3B,0x00,0x00,0x00,0x00,0x00,0x00}, // 126 ~
+    {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF}, // 127 (block)
+};
+
 // ─── Globals ──────────────────────────────────────────────────────────────────
 static constexpr float PLAT_H = 0.85f;   // restaurant plateau height
 
-static GLuint    gProg, skyProg, skyTex;
+static GLuint    gProg, skyProg, skyTex, hudProg, shadowProg;
+static GLuint    shadowFBO = 0, shadowTex = 0;
+static mat4      gLightSpace;
+static bool      gShadowPass = false;
+static const int SHADOW_RES  = 2048;
 static Mesh      mQuad, mBox, mSphere, mCylinder, mTorus, mTrap, mSkybox, mCircle;
 static Mesh      mTerrainHills;
 static Mesh      mVQuad;              // vertical quad for billboards
@@ -371,6 +500,7 @@ static Mesh      mRockyBoulder;       // low-poly displaced sphere
 static Mesh      mRiver, mRiverBank;
 static Mesh      mTaperedCyl;
 static Mesh      mThickCyl;           // short, thick palm trunk (low palm)
+static Mesh      mGableTri;           // double-sided isosceles triangle for gable caps
 static Mesh      mRestaurantPlateau;  // raised terrain around restaurant
 static Mesh      mTerrainWest;        // elongated hill bank along west edge
 
@@ -384,7 +514,14 @@ static GLuint texConcrete;      // rocks/floor1.bmp (concrete slabs)
 static GLuint texAgave;         // tropical/t_agave1/agava1.png
 static GLuint texFlax;          // tropical/t_flax1_green/flax1g.png
 static GLuint texLowPalmCrown;  // tropical/t_lowpalm1/lpalm1.png
+static GLuint texSign;          // sign.png (restaurant sign board)
 static GLFWwindow* gWin = nullptr;
+
+// ─── HUD state (drone overlay) ────────────────────────────────────────────────
+static GLuint hudFontTex = 0;
+static GLuint hudVAO     = 0, hudVBO = 0;
+static float  hudBuf[8192];   // scratch: (x,y,u,v) per vertex
+static int    hudBufN    = 0;
 static float     timeOfDay = 0.45f;
 static float     todSpeed  = 0.005f;
 
@@ -415,6 +552,9 @@ static vec3 LAMP_POSITIONS[] = {
     {  6.f,  PLAT_H,  -5.f},
     // Pond lamp (right bank)
     { 24.f,  0.f,  15.f},
+    // Sign uplighters (illuminate restaurant sign at night; glow lands at sign-board height)
+    { -3.2f, PLAT_H + 3.0f,  1.0f},
+    {  3.2f, PLAT_H + 3.0f,  1.0f},
 };
 static const int LAMP_COUNT = (int)(sizeof(LAMP_POSITIONS)/sizeof(LAMP_POSITIONS[0]));
 
@@ -505,7 +645,7 @@ static const float BALL_R  =  0.08f;
 static const float MAX_AIM =  6.0f;
 
 static int   gCurrentHole  = 1;
-static Hole* gHoles[13]   = {};   // indices 1-12
+static Hole* gHoles[19]   = {};   // indices 1-18
 static float windmillAngle = 0.f; // Hole 11 windmill rotor
 
 struct Ball {
@@ -544,10 +684,15 @@ static double lastMX    = 0, lastMY = 0;
 
 // ─── draw() shorthand ────────────────────────────────────────────────────────
 void draw(const Mesh& m, const mat4& model, const mat4& vp, int surf){
-    mat4 mvp = vp*model;
-    glUniformMatrix4fv(glGetUniformLocation(gProg,"uMVP"),  1,GL_FALSE,glm::value_ptr(mvp));
-    glUniformMatrix4fv(glGetUniformLocation(gProg,"uModel"),1,GL_FALSE,glm::value_ptr(model));
-    glUniform1i(glGetUniformLocation(gProg,"uSurface"),surf);
+    if(gShadowPass){
+        mat4 lmvp = gLightSpace * model;
+        glUniformMatrix4fv(glGetUniformLocation(shadowProg,"uLightMVP"),1,GL_FALSE,glm::value_ptr(lmvp));
+    } else {
+        mat4 mvp = vp*model;
+        glUniformMatrix4fv(glGetUniformLocation(gProg,"uMVP"),  1,GL_FALSE,glm::value_ptr(mvp));
+        glUniformMatrix4fv(glGetUniformLocation(gProg,"uModel"),1,GL_FALSE,glm::value_ptr(model));
+        glUniform1i(glGetUniformLocation(gProg,"uSurface"),surf);
+    }
     glBindVertexArray(m.vao);
     glDrawElements(GL_TRIANGLES,m.count,GL_UNSIGNED_INT,0);
     glBindVertexArray(0);
@@ -811,12 +956,15 @@ static Mesh makeRestaurantPlateau(){
 
 // Draw with texture bound (resets uUseTex=0 after use)
 static void drawWithTex(const Mesh& mesh, const mat4& model, const mat4& vp, int surf, GLuint tex){
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glUniform1i(glGetUniformLocation(gProg,"uTex"),    0);
-    glUniform1i(glGetUniformLocation(gProg,"uUseTex"), 1);
+    if(!gShadowPass){
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glUniform1i(glGetUniformLocation(gProg,"uTex"),    0);
+        glUniform1i(glGetUniformLocation(gProg,"uUseTex"), 1);
+    }
     draw(mesh, model, vp, surf);
-    glUniform1i(glGetUniformLocation(gProg,"uUseTex"), 0);
+    if(!gShadowPass)
+        glUniform1i(glGetUniformLocation(gProg,"uUseTex"), 0);
 }
 
 // Textured rugged boulder
@@ -915,6 +1063,201 @@ static void drawWalkway(vec3 a, vec3 b, float w, const mat4& vp){
     m = glm::rotate(m, ang, {0, 1, 0});
     m = glm::scale(m, {w, 1.f, len});
     draw(mQuad, m, vp, 3);
+}
+
+// ─── Shadow map light-space matrix ───────────────────────────────────────────
+// Replicates the sun direction formula from setUniforms / golf_frag.glsl.
+static mat4 computeLightSpace(float tod){
+    float sun  = tod * 2.f * PI;
+    vec3  sdir = glm::normalize(vec3(cosf(sun), sinf(sun)*0.9f+0.1f, -0.4f));
+    vec3  sceneCentre = {0.f, 5.f, 0.f};
+    vec3  lightPos    = sceneCentre + sdir * 130.f;
+    // Avoid degenerate lookAt when sdir is nearly vertical
+    vec3  up = (fabsf(glm::dot(sdir, vec3(0.f,1.f,0.f))) > 0.95f)
+               ? vec3(1.f,0.f,0.f) : vec3(0.f,1.f,0.f);
+    mat4  lightView = glm::lookAt(lightPos, sceneCentre, up);
+    mat4  lightProj = glm::ortho(-80.f,80.f,-80.f,80.f, 5.f, 280.f);
+    return lightProj * lightView;
+}
+
+// ─── HUD helpers ─────────────────────────────────────────────────────────────
+static void hudPush4(float x, float y, float u, float v){
+    if(hudBufN + 4 > (int)(sizeof(hudBuf)/sizeof(float))) return;
+    hudBuf[hudBufN++] = x; hudBuf[hudBufN++] = y;
+    hudBuf[hudBufN++] = u; hudBuf[hudBufN++] = v;
+}
+static void hudPushQuad(float x, float y, float w, float h,
+                        float u0, float v0, float u1, float v1){
+    hudPush4(x,   y,   u0,v0); hudPush4(x+w, y,   u1,v0); hudPush4(x+w, y+h, u1,v1);
+    hudPush4(x,   y,   u0,v0); hudPush4(x+w, y+h, u1,v1); hudPush4(x,   y+h, u0,v1);
+}
+static void hudPushTri(float x0,float y0, float x1,float y1, float x2,float y2){
+    hudPush4(x0,y0,0,0); hudPush4(x1,y1,0,0); hudPush4(x2,y2,0,0);
+}
+static void hudFlushSolid(vec4 col){
+    if(!hudBufN) return;
+    glUniform4fv(glGetUniformLocation(hudProg,"uColor"),1,glm::value_ptr(col));
+    glUniform1i(glGetUniformLocation(hudProg,"uUseTex"),0);
+    glBindVertexArray(hudVAO); glBindBuffer(GL_ARRAY_BUFFER,hudVBO);
+    glBufferSubData(GL_ARRAY_BUFFER,0,hudBufN*sizeof(float),hudBuf);
+    glDrawArrays(GL_TRIANGLES,0,hudBufN/4);
+    glBindVertexArray(0); hudBufN=0;
+}
+static void hudRect(float x, float y, float w, float h, vec4 col){
+    hudPushQuad(x,y,w,h,0,0,1,1); hudFlushSolid(col);
+}
+static void hudText(const char* str, float x, float y, float s, vec4 col){
+    float cx = x;
+    for(int i=0; str[i]; i++){
+        unsigned char c = (unsigned char)str[i];
+        if(c < 32 || c > 127) c = '?';
+        float u0 = (c%16)/16.f, v0 = (c/16)/16.f;
+        hudPushQuad(cx, y, 8.f*s, 8.f*s, u0, v0, u0+1.f/16.f, v0+1.f/16.f);
+        cx += 8.f*s;
+    }
+    if(!hudBufN) return;
+    glUniform4fv(glGetUniformLocation(hudProg,"uColor"),1,glm::value_ptr(col));
+    glUniform1i(glGetUniformLocation(hudProg,"uUseTex"),1);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D,hudFontTex);
+    glUniform1i(glGetUniformLocation(hudProg,"uTex"),0);
+    glBindVertexArray(hudVAO); glBindBuffer(GL_ARRAY_BUFFER,hudVBO);
+    glBufferSubData(GL_ARRAY_BUFFER,0,hudBufN*sizeof(float),hudBuf);
+    glDrawArrays(GL_TRIANGLES,0,hudBufN/4);
+    glBindVertexArray(0); hudBufN=0;
+}
+static void hudCompass(float cx, float cy, float r, float yaw, vec4 ring){
+    // Thin circle ring
+    const int N = 36;
+    float ri = r - 3.5f;
+    for(int i=0; i<N; i++){
+        float a0=2.f*PI*i/N, a1=2.f*PI*(i+1)/N;
+        hudPushTri(cx+ri*cosf(a0),cy+ri*sinf(a0), cx+r*cosf(a0),cy+r*sinf(a0), cx+r*cosf(a1),cy+r*sinf(a1));
+        hudPushTri(cx+ri*cosf(a0),cy+ri*sinf(a0), cx+r*cosf(a1),cy+r*sinf(a1), cx+ri*cosf(a1),cy+ri*sinf(a1));
+    }
+    hudFlushSolid(ring);
+    // N,E,S,W tick marks
+    float cardA[4] = {-PI*.5f, 0.f, PI*.5f, PI};
+    for(int i=0; i<4; i++){
+        float ca=cardA[i], pa=ca+PI*.5f;
+        float tw=1.5f, r0=ri-4.f, r1=ri;
+        float px=cosf(pa)*tw, py=sinf(pa)*tw;
+        hudPushTri(cx+r0*cosf(ca)-px,cy+r0*sinf(ca)-py,
+                   cx+r0*cosf(ca)+px,cy+r0*sinf(ca)+py,
+                   cx+r1*cosf(ca)+px,cy+r1*sinf(ca)+py);
+        hudPushTri(cx+r0*cosf(ca)-px,cy+r0*sinf(ca)-py,
+                   cx+r1*cosf(ca)+px,cy+r1*sinf(ca)+py,
+                   cx+r1*cosf(ca)-px,cy+r1*sinf(ca)-py);
+    }
+    hudFlushSolid({ring.r*.5f,ring.g*.5f,ring.b*.5f,ring.a});
+    // Direction needle — yaw=0 → drone faces -Z world → arrow points UP on screen
+    // screen direction: (sin(yaw), -cos(yaw))
+    float nx=sinf(yaw), ny=-cosf(yaw);
+    float nlen=r*.72f, base=r*.22f, hw=5.5f;
+    float ftx=cx+nx*nlen, fty=cy+ny*nlen;         // forward tip
+    float bcx=cx-nx*base, bcy=cy-ny*base;          // base pivot
+    float perpx=-ny, perpy=nx;
+    hudPushTri(ftx,fty, bcx+perpx*hw,bcy+perpy*hw, bcx-perpx*hw,bcy-perpy*hw);
+    hudFlushSolid({0.1f,1.f,0.9f,1.f});            // bright teal: forward
+    float btx=cx-nx*nlen*.60f, bty=cy-ny*nlen*.60f;
+    hudPushTri(btx,bty, bcx+perpx*hw,bcy+perpy*hw, bcx-perpx*hw,bcy-perpy*hw);
+    hudFlushSolid({0.f,0.25f,0.3f,1.f});           // dark: backward
+    // Cardinal labels N E S W
+    const char cardLbl[4] = {'N','E','S','W'};
+    float lR = r + 14.f;
+    vec4 lc={0.f,0.8f,0.85f,0.9f};
+    char tmp[2]={0,0};
+    for(int i=0; i<4; i++){
+        tmp[0]=cardLbl[i];
+        hudText(tmp, cx+lR*cosf(cardA[i])-4.f, cy+lR*sinf(cardA[i])-4.f, 1.f, lc);
+    }
+}
+static void initHUD(){
+    // Build 128×128 font atlas: 16×16 grid of 8×8 glyph cells
+    unsigned char atlas[128*128] = {};
+    for(int c=32; c<128; c++){
+        int px=(c%16)*8, py=(c/16)*8;
+        for(int row=0; row<8; row++){
+            unsigned char bits=FONT8X8[c-32][row];
+            for(int col=0; col<8; col++)
+                if(bits & (1<<col)) atlas[(py+row)*128+(px+col)]=255;
+        }
+    }
+    glGenTextures(1,&hudFontTex);
+    glBindTexture(GL_TEXTURE_2D,hudFontTex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_RED,128,128,0,GL_RED,GL_UNSIGNED_BYTE,atlas);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+    glPixelStorei(GL_UNPACK_ALIGNMENT,4);
+    glGenVertexArrays(1,&hudVAO); glGenBuffers(1,&hudVBO);
+    glBindVertexArray(hudVAO);
+    glBindBuffer(GL_ARRAY_BUFFER,hudVBO);
+    glBufferData(GL_ARRAY_BUFFER,sizeof(hudBuf),nullptr,GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)(2*sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glBindVertexArray(0);
+}
+static void renderHUD(){
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(hudProg);
+    mat4 ortho=glm::ortho(0.f,(float)WIN_W,(float)WIN_H,0.f,-1.f,1.f);
+    glUniformMatrix4fv(glGetUniformLocation(hudProg,"uOrtho"),1,GL_FALSE,glm::value_ptr(ortho));
+
+    const float PX=16.f, PY=16.f, PW=190.f, PH=248.f;
+    const vec4 bgCol  ={0.00f,0.11f,0.14f,0.80f};
+    const vec4 borCol ={0.00f,0.52f,0.62f,0.92f};
+    const vec4 txtCol ={0.00f,0.85f,0.90f,1.00f};
+    const vec4 dimCol ={0.00f,0.52f,0.62f,0.90f};
+    const vec4 ringCol={0.00f,0.52f,0.62f,0.85f};
+
+    // Background panel + border
+    hudRect(PX,PY,PW,PH,bgCol);
+    hudRect(PX,      PY,      PW, 1.5f,borCol);
+    hudRect(PX,      PY+PH-1.5f,PW, 1.5f,borCol);
+    hudRect(PX,      PY,      1.5f,PH, borCol);
+    hudRect(PX+PW-1.5f,PY,   1.5f,PH, borCol);
+
+    // Header
+    hudText("DRONE", PX+8.f, PY+8.f, 2.f, txtCol);
+    hudRect(PX+6.f, PY+28.f, PW-12.f, 1.f, dimCol);
+
+    // Position readout
+    char buf[32];
+    float fscl=1.5f, lineH=18.f, ty=PY+34.f;
+    snprintf(buf,sizeof(buf),"X:%+9.2f",drone.pos.x);
+    hudText(buf,PX+8.f,ty,fscl,txtCol); ty+=lineH;
+    snprintf(buf,sizeof(buf),"Y:%+9.2f",drone.pos.y);
+    hudText(buf,PX+8.f,ty,fscl,txtCol); ty+=lineH;
+    snprintf(buf,sizeof(buf),"Z:%+9.2f",drone.pos.z);
+    hudText(buf,PX+8.f,ty,fscl,txtCol);
+    hudRect(PX+6.f, PY+92.f, PW-12.f, 1.f, dimCol);
+
+    // Compass
+    float cx=PX+PW*.5f, cy=PY+168.f;
+    hudCompass(cx,cy,44.f,drone.yaw,ringCol);
+
+    // Heading abbreviation below ring
+    float hdeg=fmodf(glm::degrees(drone.yaw)+360.f,360.f);
+    const char* hdg =
+        (hdeg< 22.5f||hdeg>=337.5f)?"N" :
+        (hdeg< 67.5f)              ?"NE":
+        (hdeg<112.5f)              ?"E" :
+        (hdeg<157.5f)              ?"SE":
+        (hdeg<202.5f)              ?"S" :
+        (hdeg<247.5f)              ?"SW":
+        (hdeg<292.5f)              ?"W" :"NW";
+    float hdgW=(float)strlen(hdg)*8.f*fscl;
+    hudText(hdg, cx-hdgW*.5f, cy+50.f, fscl, txtCol);
+
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
 }
 
 // ─── Callbacks ───────────────────────────────────────────────────────────────
@@ -1189,6 +1532,79 @@ static void drawWindmill(const mat4& vp)
       draw(mBox, m, vp, 6); }
 }
 
+// ── Second bridge: crossing of the river at approximately (x=2, z=38) ────────
+// River runs NW at this point (from (9,31) toward (-5,41)), direction ≈(-7,0,4).
+// Bridge runs perpendicular to river: direction (4,0,7), BANG=atan2(-7,4)≈-60.2°.
+static void renderBridge2(const mat4& vp)
+{
+    // Coordinate frame: `base` = translate(centre) * rotate_Y(BANG).
+    // Local axes: U = along bridge, V = across bridge.
+    // R_y(BANG) maps +X → (cos BANG, 0, -sin BANG) = (4,0,7)/sqrt(65) world dir.
+    const float BCX    =  2.0f;                // deck centre world X
+    const float BCZ    = 38.11f;               // deck centre world Z
+    const float BANG   = atan2f(-7.f, 4.f);   // ≈ -1.052 rad ≈ -60.2°
+    const float BL     = 8.0f;                 // deck length (U axis)
+    const float BW     = 2.0f;                 // deck width  (V axis)
+    const float H      = 1.2f;                 // deck elevation above ground
+    const float POST_R = 0.13f;
+    const float STEP_H = 0.30f;
+    const float STEP_D = 0.40f;
+    const int   NSTEPS = 4;                    // 4 × 0.3 = 1.2 = H
+    const float RP_H   = 0.65f;
+    const float RAIL_T = 0.07f;
+    const float SINK   = 0.10f;
+
+    // Base transform: flat ground at this location (no plateau).
+    mat4 base = glm::translate(mat4(1), {BCX, 0.f, BCZ});
+    base = glm::rotate(base, BANG, {0.f, 1.f, 0.f});
+
+    // Deck (horizontal quad, U × V)
+    { mat4 m = glm::translate(base, {0.f, H, 0.f});
+      m = glm::scale(m, {BL, 1.f, BW}); draw(mQuad, m, vp, 6); }
+
+    // Support stilts at intervals along U, paired ±V
+    auto stilt = [&](float u, float v){
+        mat4 m = glm::translate(base, {u, -SINK, v});
+        m = glm::scale(m, {POST_R*2.f, H+SINK, POST_R*2.f}); draw(mCylinder, m, vp, 6); };
+    for(float u = -BL*0.5f; u <= BL*0.5f + 0.01f; u += 2.4f){
+        stilt(u, -BW*0.5f);
+        stilt(u, +BW*0.5f);
+    }
+
+    // Railing posts along both sides
+    auto rpost = [&](float u, float v){
+        mat4 m = glm::translate(base, {u, H, v});
+        m = glm::scale(m, {0.10f, RP_H, 0.10f}); draw(mCylinder, m, vp, 6); };
+    for(float u = -BL*0.5f; u <= BL*0.5f + 0.01f; u += 1.20f){
+        rpost(u, -BW*0.5f);
+        rpost(u, +BW*0.5f);
+    }
+
+    // Horizontal rails — 2 heights per side
+    for(int side = 0; side < 2; side++){
+        float v = (side == 0) ? -BW*0.5f : +BW*0.5f;
+        { mat4 m = glm::translate(base, {0.f, H + RP_H*0.30f, v});
+          m = glm::scale(m, {BL, RAIL_T, RAIL_T}); draw(mBox, m, vp, 6); }
+        { mat4 m = glm::translate(base, {0.f, H + RP_H*0.85f, v});
+          m = glm::scale(m, {BL, RAIL_T, RAIL_T}); draw(mBox, m, vp, 6); }
+    }
+
+    // West stairs (negative-U end, stepping down toward west bank)
+    for(int s = 0; s < NSTEPS; s++){
+        float uc = -(BL*0.5f) - (NSTEPS - s - 0.5f) * STEP_D;
+        float h  = (s + 1) * STEP_H;
+        mat4 m = glm::translate(base, {uc, h*0.5f, 0.f});
+        m = glm::scale(m, {STEP_D, h, BW}); draw(mBox, m, vp, 6);
+    }
+    // East stairs (positive-U end, stepping down toward east bank)
+    for(int s = 0; s < NSTEPS; s++){
+        float uc = +(BL*0.5f) + (NSTEPS - s - 0.5f) * STEP_D;
+        float h  = (s + 1) * STEP_H;
+        mat4 m = glm::translate(base, {uc, h*0.5f, 0.f});
+        m = glm::scale(m, {STEP_D, h, BW}); draw(mBox, m, vp, 6);
+    }
+}
+
 // ── Decorative bridge near east edge, crossing the river ─────────────────────
 // Elevated wooden deck on stilts with post-and-rail fencing and stairs at
 // both ends. Not a playable hole — purely scenic.
@@ -1323,66 +1739,96 @@ static void drawRestaurant(const mat4& vp, float yOff = 0.f){
     { mat4 m = glm::translate(mat4(1), {cx, yOff+1.35f, cz-bd*0.5f-0.18f}); m = glm::scale(m, {2.2f, 2.7f, 0.14f}); draw(mBox, m, vp, 13); }
     { mat4 m = glm::translate(mat4(1), {cx, yOff+1.35f, cz-bd*0.5f-0.28f}); m = glm::scale(m, {0.08f, 2.5f, 0.08f}); draw(mBox, m, vp, 8); }
 
-    float roofY = yOff + bh + 0.15f;
-    float roofW = bw + 1.8f;
-    float roofD = bd + 1.8f;
-    float roofH = 2.0f;
+    float roofY = yOff + bh + 0.15f;   // eave level (just above wall top)
+    float roofW = bw + 1.8f;            // 11.8  — eave width with overhang
+    float roofD = bd + 1.8f;            // 9.8   — eave depth with overhang
+    float roofH = 2.0f;                 // eave to ridge height
+
+    // Derive slope geometry from actual rise/run so panels don't over-extend
+    const float slopeA  = atan2f(roofH, roofW * 0.5f);         // true pitch angle (~18.7°)
+    const float panelL  = hypotf(roofW * 0.5f, roofH);         // hypotenuse eave→ridge (~6.23)
+    const float panelCx = roofW * 0.25f;                        // X offset of panel centre (2.95)
+    const float panelCy = roofY + roofH * 0.5f;                 // Y midpoint of panel
 
     // Eave base
-    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+0.03f, cz}); m = glm::scale(m, {roofW, 0.18f, roofD}); draw(mBox, m, vp, 6); }
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+0.03f, cz}); m = glm::scale(m, {roofW, 0.18f, roofD}); draw(mBox, m, vp, 20); }
 
-    // Left slope panel
-    { mat4 m = glm::translate(mat4(1), {cx - roofW*0.255f, roofY + roofH*0.36f, cz});
-      m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
-      m = glm::scale(m, {roofW*0.60f, 0.22f, roofD}); draw(mBox, m, vp, 6); }
+    // Left slope panel — exactly spans eave to ridge
+    { mat4 m = glm::translate(mat4(1), {cx - panelCx, panelCy, cz});
+      m = glm::rotate(m, slopeA, vec3(0, 0, 1));
+      m = glm::scale(m, {panelL, 0.18f, roofD}); draw(mBox, m, vp, 20); }
 
     // Right slope panel
-    { mat4 m = glm::translate(mat4(1), {cx + roofW*0.255f, roofY + roofH*0.36f, cz});
-      m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
-      m = glm::scale(m, {roofW*0.60f, 0.22f, roofD}); draw(mBox, m, vp, 6); }
+    { mat4 m = glm::translate(mat4(1), {cx + panelCx, panelCy, cz});
+      m = glm::rotate(m, -slopeA, vec3(0, 0, 1));
+      m = glm::scale(m, {panelL, 0.18f, roofD}); draw(mBox, m, vp, 20); }
 
-    // Battens
+    // Battens along the slope surface
     for(int i = -5; i <= 5; ++i){
         float z = cz + i * (roofD / 11.0f);
-        { mat4 m = glm::translate(mat4(1), {cx - roofW*0.255f, roofY + roofH*0.48f, z});
-          m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
-          m = glm::scale(m, {roofW*0.58f, 0.045f, 0.045f}); draw(mBox, m, vp, 7); }
-        { mat4 m = glm::translate(mat4(1), {cx + roofW*0.255f, roofY + roofH*0.48f, z});
-          m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
-          m = glm::scale(m, {roofW*0.58f, 0.045f, 0.045f}); draw(mBox, m, vp, 7); }
+        { mat4 m = glm::translate(mat4(1), {cx - panelCx, panelCy, z});
+          m = glm::rotate(m, slopeA, vec3(0, 0, 1));
+          m = glm::scale(m, {panelL, 0.045f, 0.045f}); draw(mBox, m, vp, 7); }
+        { mat4 m = glm::translate(mat4(1), {cx + panelCx, panelCy, z});
+          m = glm::rotate(m, -slopeA, vec3(0, 0, 1));
+          m = glm::scale(m, {panelL, 0.045f, 0.045f}); draw(mBox, m, vp, 7); }
     }
 
     // Ridge beam
-    { mat4 m = glm::translate(mat4(1), {cx, roofY + roofH*0.78f, cz});
+    { mat4 m = glm::translate(mat4(1), {cx, roofY + roofH, cz});
       m = glm::scale(m, {0.32f, 0.32f, roofD+0.35f}); draw(mBox, m, vp, 7); }
 
-    // Gable end pieces (front)
-    { mat4 m = glm::translate(mat4(1), {cx - 1.55f, yOff+bh+0.75f, cz + roofD*0.505f});
-      m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
-      m = glm::scale(m, {3.6f, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
-    { mat4 m = glm::translate(mat4(1), {cx + 1.55f, yOff+bh+0.75f, cz + roofD*0.505f});
-      m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
-      m = glm::scale(m, {3.6f, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
+    // Gable edge trim — follows exact slope at front and back eave ends
+    { mat4 m = glm::translate(mat4(1), {cx - panelCx, panelCy, cz + roofD*0.505f});
+      m = glm::rotate(m, slopeA, vec3(0, 0, 1));
+      m = glm::scale(m, {panelL, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
+    { mat4 m = glm::translate(mat4(1), {cx + panelCx, panelCy, cz + roofD*0.505f});
+      m = glm::rotate(m, -slopeA, vec3(0, 0, 1));
+      m = glm::scale(m, {panelL, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
+    { mat4 m = glm::translate(mat4(1), {cx - panelCx, panelCy, cz - roofD*0.505f});
+      m = glm::rotate(m, slopeA, vec3(0, 0, 1));
+      m = glm::scale(m, {panelL, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
+    { mat4 m = glm::translate(mat4(1), {cx + panelCx, panelCy, cz - roofD*0.505f});
+      m = glm::rotate(m, -slopeA, vec3(0, 0, 1));
+      m = glm::scale(m, {panelL, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
 
-    // Gable end pieces (back)
-    { mat4 m = glm::translate(mat4(1), {cx - 1.55f, yOff+bh+0.75f, cz - roofD*0.505f});
-      m = glm::rotate(m, glm::radians(28.0f), vec3(0, 0, 1));
-      m = glm::scale(m, {3.6f, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
-    { mat4 m = glm::translate(mat4(1), {cx + 1.55f, yOff+bh+0.75f, cz - roofD*0.505f});
-      m = glm::rotate(m, glm::radians(-28.0f), vec3(0, 0, 1));
-      m = glm::scale(m, {3.6f, 0.12f, 0.16f}); draw(mBox, m, vp, 7); }
+    // Gable wall fill — triangular face matching the gable outline at the building wall face
+    {
+        const float triH = roofH + 0.15f;  // 2.15 = wall-top to ridge
+        { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+triH*0.5f, cz + bd*0.5f});
+          m = glm::scale(m, {bw, triH, 1.f}); draw(mGableTri, m, vp, 8); }
+        { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+triH*0.5f, cz - bd*0.5f});
+          m = glm::scale(m, {bw, triH, 1.f}); draw(mGableTri, m, vp, 8); }
+    }
 
-    // Sign board (front and back) — surf 34 cream/ivory
-    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+3.15f, cz + 0.16f});
-      m = glm::scale(m, {5.0f, 1.35f, 0.12f}); draw(mBox, m, vp, 34); }
-    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+3.15f, cz - 0.16f});
-      m = glm::scale(m, {5.0f, 1.35f, 0.12f}); draw(mBox, m, vp, 34); }
+    // Roof gable end caps — triangular faces closing the slope panels at the eave ends
+    { mat4 m = glm::translate(mat4(1), {cx, roofY + roofH*0.5f, cz + roofD*0.5f + 0.02f});
+      m = glm::scale(m, {roofW, roofH, 1.f}); draw(mGableTri, m, vp, 20); }
+    { mat4 m = glm::translate(mat4(1), {cx, roofY + roofH*0.5f, cz - roofD*0.5f - 0.02f});
+      m = glm::scale(m, {roofW, roofH, 1.f}); draw(mGableTri, m, vp, 20); }
 
-    // Sign posts
-    { mat4 m = glm::translate(mat4(1), {cx - 2.0f, yOff+bh+2.2f, cz});
-      m = glm::scale(m, {0.11f, 2.2f, 0.11f}); draw(mBox, m, vp, 13); }
-    { mat4 m = glm::translate(mat4(1), {cx + 2.0f, yOff+bh+2.2f, cz});
-      m = glm::scale(m, {0.11f, 2.2f, 0.11f}); draw(mBox, m, vp, 13); }
+    // Sign board — shift UV right so parrot sits more toward right of board
+    glUniform2f(glGetUniformLocation(gProg, "uTexOffset"), -0.18f, 0.0f);
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+3.65f, cz + 0.16f});
+      m = glm::scale(m, {7.0f, 3.5f, 0.12f}); drawWithTex(mBox, m, vp, 15, texSign); }
+    { mat4 m = glm::translate(mat4(1), {cx, yOff+bh+3.65f, cz - 0.16f});
+      m = glm::scale(m, {7.0f, 3.5f, 0.12f}); drawWithTex(mBox, m, vp, 15, texSign); }
+    glUniform2f(glGetUniformLocation(gProg, "uTexOffset"), 0.0f, 0.0f);
+
+    // Sign posts — spaced to bracket the wider board
+    { mat4 m = glm::translate(mat4(1), {cx - 3.2f, yOff+bh+3.0f, cz});
+      m = glm::scale(m, {0.11f, 3.2f, 0.11f}); draw(mBox, m, vp, 13); }
+    { mat4 m = glm::translate(mat4(1), {cx + 3.2f, yOff+bh+3.0f, cz});
+      m = glm::scale(m, {0.11f, 3.2f, 0.11f}); draw(mBox, m, vp, 13); }
+
+    // Mini uplighter fixtures (aligned with LAMP_POSITIONS sign lamps)
+    for(int s = -1; s <= 1; s += 2){
+        float lx = cx + s * 3.2f;
+        { mat4 m = glm::translate(mat4(1), {lx, yOff+bh+3.2f, cz+1.0f});
+          m = glm::scale(m, {0.07f, 0.55f, 0.07f}); draw(mBox, m, vp, 13); }
+        { mat4 m = glm::translate(mat4(1), {lx, yOff+bh+3.65f, cz+1.0f});
+          m = glm::scale(m, {0.22f, 0.22f, 0.22f}); draw(mSphere, m, vp, 14); }
+    }
 }
 
 static Mesh makeSkyboxMesh(){
@@ -1432,8 +1878,28 @@ int main(){
     glClearColor(0.01f,0.02f,0.06f,1);
 
     gProg   = LoadShaders("golf_vert.glsl","golf_frag.glsl");
-    skyProg = LoadShaders("sky_vert.glsl", "sky_frag.glsl");
+    skyProg    = LoadShaders("sky_vert.glsl",    "sky_frag.glsl");
+    hudProg    = LoadShaders("hud_vert.glsl",    "hud_frag.glsl");
+    shadowProg = LoadShaders("shadow_vert.glsl", "shadow_frag.glsl");
     skyTex  = loadTexture("day_sky.png");
+    initHUD();
+
+    // ── Shadow map framebuffer ────────────────────────────────────────────────
+    glGenFramebuffers(1, &shadowFBO);
+    glGenTextures(1, &shadowTex);
+    glBindTexture(GL_TEXTURE_2D, shadowTex);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_DEPTH_COMPONENT,SHADOW_RES,SHADOW_RES,0,
+                 GL_DEPTH_COMPONENT,GL_FLOAT,nullptr);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_BORDER);
+    float brd[]={1,1,1,1};
+    glTexParameterfv(GL_TEXTURE_2D,GL_TEXTURE_BORDER_COLOR,brd);
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_TEXTURE_2D,shadowTex,0);
+    glDrawBuffer(GL_NONE); glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     mQuad     = makeQuad();
     mBox      = makeBox();
@@ -1449,6 +1915,7 @@ int main(){
     mTerrainHills = makeHillTerrain(33.f, 38.f, 16.f, 14.f, 32, 28);
     mTaperedCyl        = makeTaperedCylinder(0.18f, 0.10f, 18);
     mThickCyl          = makeTaperedCylinder(0.32f, 0.18f, 18);
+    mGableTri          = makeGableTri();
     mRestaurantPlateau = makeRestaurantPlateau();
     mTerrainWest       = makeWestHillTerrain();
 
@@ -1510,6 +1977,9 @@ int main(){
     texAgave        = loadTexture("textures/tropical/t_agave1/agava1.png");
     texFlax         = loadTexture("textures/tropical/t_flax1_green/flax1g.png");
     texLowPalmCrown = loadTexture("textures/tropical/t_lowpalm1/lpalm1.png");
+    stbi_set_flip_vertically_on_load(1);
+    texSign         = loadTexture("sign.png");
+    stbi_set_flip_vertically_on_load(0);
 
     gHoles[1]  = new Hole1(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[2]  = new Hole2(&mQuad, &mBox, &mCylinder, &mTorus, &mSphere);
@@ -1523,6 +1993,12 @@ int main(){
     gHoles[10] = new Hole10(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[11] = new Hole11(&mQuad, &mBox, &mCylinder, &mTorus);
     gHoles[12] = new Hole12(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[13] = new Hole13(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[14] = new Hole14(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[15] = new Hole15(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[16] = new Hole16(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[17] = new Hole17(&mQuad, &mBox, &mCylinder, &mTorus);
+    gHoles[18] = new Hole18(&mQuad, &mBox, &mCylinder, &mTorus);
 
     double prev = glfwGetTime();
 
@@ -1563,7 +2039,7 @@ int main(){
             ball.moving = false;
             printf("Hole %d: %d stroke%s\n",
                    gCurrentHole, ball.strokes, ball.strokes==1?"":"s");
-            if(gCurrentHole < 12){
+            if(gCurrentHole < 18){
                 gCurrentHole++;
                 ball.pos = gHoles[gCurrentHole] ? gHoles[gCurrentHole]->getTeePos()
                                                 : vec3(0.f, BALL_R, 0.f);
@@ -1629,17 +2105,19 @@ int main(){
         glBindVertexArray(0);
         glDepthMask(GL_TRUE); glDepthFunc(GL_LESS);
 
-        // ── Scene ──
-        glUseProgram(gProg);
-        setUniforms((float)now, vp);
+        // ── Scene geometry lambda ─────────────────────────────────────────────
+        bool shadowOn = (timeOfDay >= 0.25f && timeOfDay <= 0.75f);
+        if(shadowOn) gLightSpace = computeLightSpace(timeOfDay);
 
+        auto drawScene = [&](){
         draw(mTrap, mat4(1), vp, 2);
 
-        for(int i = 1; i <= 12; i++)
+        for(int i = 1; i <= 18; i++)
             if(gHoles[i]) gHoles[i]->render(vp);
 
         drawWindmill(vp);
         renderBridge(vp);
+        renderBridge2(vp);   // E-W crossing of thin river south of restaurant
 
         // Restaurant plateau — gradual slope rising to PLAT_H around restaurant area
         draw(mRestaurantPlateau, mat4(1), vp, 2);
@@ -1749,6 +2227,25 @@ int main(){
         drawBillboard({19.8f,0.f,  8.8f},1.1f,1.4f,texAgave,vp);
         drawBoulder({13.5f,0.18f,  5.3f},0.38f,texRock[7],vp);
         drawBillboard({12.8f,0.f,  6.0f},0.8f,1.1f,texFlax,vp);
+        // Plateau corner vegetation — dry bank between plateau slope and river (x < bank_x)
+        drawBoulder({11.5f,0.18f,  0.5f},0.40f,texRock[2],vp);
+        drawBillboard({10.8f,0.f,  1.5f},0.9f,1.2f,texShrub[0],vp);
+        drawBoulder({13.0f,0.20f, -1.0f},0.35f,texRock[4],vp);
+        drawBillboard({12.2f,0.f, -0.5f},1.0f,1.3f,texAgave,vp);
+        drawBoulder({10.0f,0.20f,  2.2f},0.42f,texRock[0],vp);
+        drawBillboard({ 9.3f,0.f,  3.0f},1.0f,1.3f,texAgave,vp);
+        drawBoulder({10.8f,0.22f,  3.5f},0.38f,texRock[3],vp);
+        drawBillboard({10.1f,0.f,  4.3f},0.9f,1.2f,texFlax,vp);
+        drawBoulder({ 9.5f,0.20f,  5.5f},0.40f,texRock[1],vp);
+        drawBillboard({ 8.8f,0.f,  6.3f},0.85f,1.2f,texShrub[1],vp);
+        drawBoulder({10.3f,0.22f,  4.5f},0.38f,texRock[5],vp);
+        drawBillboard({ 9.6f,0.f,  5.2f},0.9f,1.3f,texFlax,vp);
+        drawBoulder({ 8.8f,0.18f,  7.2f},0.35f,texRock[6],vp);
+        drawBillboard({ 8.1f,0.f,  7.9f},0.8f,1.1f,texWeed[0],vp);
+        drawBoulder({12.0f,0.22f,  1.0f},0.42f,texRock[7],vp);
+        drawBillboard({11.3f,0.f,  1.8f},0.85f,1.2f,texFlax,vp);
+        drawBoulder({ 9.0f,0.20f,  6.8f},0.38f,texRock[2],vp);
+        drawBillboard({ 8.3f,0.f,  7.5f},0.9f,1.2f,texAgave,vp);
         // Pond area — north and south banks only (east bank near island already has vegetation)
         drawBoulder({20.4f,0.22f, 11.1f},0.50f,texRock[2],vp);
         drawBillboard({21.2f,0.f, 12.0f},1.0f,1.3f,texAgave,vp);
@@ -1848,7 +2345,7 @@ int main(){
         // Near restaurant entrance / path leading up
         drawLowPalmTree({-10.f, 0.f,   9.f}, 3.2f, texPalmCrown[0], vp);
         drawLowPalmTree({ -8.f, 0.f,  -8.f}, 2.8f, texPalmCrown[0], vp);
-        drawLowPalmTree({  4.f, 0.f,   6.f}, 3.0f, texPalmCrown[0], vp);
+        drawLowPalmTree({  6.5f, PLAT_H, -6.2f}, 3.0f, texPalmCrown[0], vp); // SE corner of south concrete slab
         // Along hole 1 / 2 approach
         drawLowPalmTree({-24.f, 0.f,  35.f}, 2.6f, texPalmCrown[0], vp);
         drawLowPalmTree({-24.f, 0.f,  20.f}, 3.0f, texPalmCrown[0], vp);
@@ -1871,6 +2368,19 @@ int main(){
         // North central area
         drawLowPalmTree({  0.f, 0.f,  32.f}, 2.7f, texPalmCrown[0], vp);
         drawLowPalmTree({  8.f, 0.f,  38.f}, 3.2f, texPalmCrown[0], vp);
+
+        // North-east corner — tall palms filling the sparse open area
+        drawPalmTree({ 22.f, 0.f,  20.f}, 6.0f, texBark, texPalmCrown[1], vp);
+        drawPalmTree({ 30.f, 0.f,  16.f}, 5.5f, texBark, texPalmCrown[0], vp);
+        drawPalmTree({ 26.f, 0.f,  32.f}, 6.5f, texBark, texPalmCrown[0], vp);
+        drawPalmTree({ 18.f, 0.f,  28.f}, 5.0f, texBark, texPalmCrown[1], vp);
+
+        // North-east corner — low palms for understory variety
+        drawLowPalmTree({ 19.f, 0.f,  16.f}, 2.8f, texPalmCrown[1], vp);
+        drawLowPalmTree({ 24.f, 0.f,  24.f}, 3.0f, texPalmCrown[1], vp); // shifted W of H15 west wall
+        drawLowPalmTree({ 17.5f, 0.f, 37.f}, 2.7f, texPalmCrown[0], vp); // shifted clear of H16 water ring
+        drawLowPalmTree({ 33.f, 0.f,  12.f}, 3.2f, texPalmCrown[0], vp);
+        drawLowPalmTree({ 30.f, 0.f,  25.f}, 2.9f, texPalmCrown[0], vp);
 
         // Hill terrain — upper-right corner (smoothly blends into flat ground)
         draw(mTerrainHills, mat4(1), vp, 23);
@@ -1900,6 +2410,25 @@ int main(){
         drawPalmTree({43.f, terrainH(43.f,45.f), 45.f}, 7.5f, texBark, texPalmCrown[0], vp);
         drawPalmTree({38.f, terrainH(38.f,50.f), 50.f}, 5.5f, texBark, texPalmCrown[0], vp);
         drawPalmTree({47.f, terrainH(47.f,44.f), 44.f}, 5.0f, texBark, texPalmCrown[0], vp);
+
+        // Hole 14 (S-curve) — small decorative palms along the outside of the curves
+        {
+            const auto& tp = Hole14::treePositions();
+            for (size_t i = 0; i < tp.size(); i++) {
+                float h = 2.6f + 0.4f * (float)((i * 13) % 5) / 4.f;
+                GLuint crown14 = (i == 2 || i == 5) ? texPalmCrown[0] : texPalmCrown[i % 3];
+                drawPalmTree(tp[i], h, texBark, crown14, vp);
+            }
+        }
+
+        // Hole 18 (lighthouse plaza) — corner palm trees
+        {
+            const auto& tp = Hole18::treePositions();
+            for (size_t i = 0; i < tp.size(); i++) {
+                GLuint crown18 = (i == 2) ? texPalmCrown[0] : texPalmCrown[i % 3];
+                drawPalmTree(tp[i], 3.2f, texBark, crown18, vp);
+            }
+        }
 
         // Tropical shrubs
         drawBillboard({44.f, terrainH(44.f,48.f), 48.f}, 2.5f, 3.0f, texShrub[0], vp);
@@ -1949,17 +2478,50 @@ int main(){
                 draw(mBox, m, vp, 17);
             }
         }
+        }; // end drawScene lambda
+
+        // ── Shadow pass (depth map from sun direction) ────────────────────────
+        if(shadowOn){
+            glViewport(0,0,SHADOW_RES,SHADOW_RES);
+            glBindFramebuffer(GL_FRAMEBUFFER,shadowFBO);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            glEnable(GL_DEPTH_TEST);
+            glEnable(GL_POLYGON_OFFSET_FILL); glPolygonOffset(2.f,4.f);
+            glUseProgram(shadowProg);
+            gShadowPass = true;
+            drawScene();
+            gShadowPass = false;
+            glDisable(GL_POLYGON_OFFSET_FILL);
+            glBindFramebuffer(GL_FRAMEBUFFER,0);
+            glViewport(0,0,WIN_W,WIN_H);
+        }
+
+        // ── Main scene pass ───────────────────────────────────────────────────
+        glUseProgram(gProg);
+        setUniforms((float)now, vp);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, shadowOn ? shadowTex : 0);
+        glActiveTexture(GL_TEXTURE0);
+        glUniform1i(glGetUniformLocation(gProg,"uShadowMap"),1);
+        glUniform1i(glGetUniformLocation(gProg,"uShadowOn"), shadowOn ? 1 : 0);
+        if(shadowOn)
+            glUniformMatrix4fv(glGetUniformLocation(gProg,"uLightSpace"),1,GL_FALSE,
+                               glm::value_ptr(gLightSpace));
+        drawScene();
+
+        // Drone HUD overlay (2D, depth-test disabled during render)
+        if(droneView) renderHUD();
 
         glfwSwapBuffers(gWin);
         glfwPollEvents();
     }
 
-    for(int i = 1; i <= 12; i++) delete gHoles[i];
+    for(int i = 1; i <= 18; i++) delete gHoles[i];
     freeMesh(mQuad); freeMesh(mBox); freeMesh(mSphere);
     freeMesh(mCylinder); freeMesh(mTorus); freeMesh(mTrap); freeMesh(mCircle);
     freeMesh(mVQuad); freeMesh(mLeafVQuad); freeMesh(mRockyBoulder); freeMesh(mTerrainHills);
     freeMesh(mRiver); freeMesh(mRiverBank); freeMesh(mTaperedCyl); freeMesh(mThickCyl);
-    freeMesh(mRestaurantPlateau); freeMesh(mTerrainWest);
+    freeMesh(mGableTri); freeMesh(mRestaurantPlateau); freeMesh(mTerrainWest);
     glDeleteTextures(8, texRock);
     glDeleteTextures(1, &texBark);
     glDeleteTextures(3, texPalmCrown);
@@ -1972,7 +2534,11 @@ int main(){
     glDeleteBuffers(1,&mSkybox.vbo);
     glDeleteVertexArrays(1,&mSkybox.vao);
     glDeleteTextures(1, &skyTex);
-    glDeleteProgram(gProg); glDeleteProgram(skyProg);
+    glDeleteTextures(1,&hudFontTex);
+    glDeleteBuffers(1,&hudVBO); glDeleteVertexArrays(1,&hudVAO);
+    glDeleteProgram(gProg); glDeleteProgram(skyProg); glDeleteProgram(hudProg);
+    glDeleteProgram(shadowProg);
+    glDeleteTextures(1,&shadowTex); glDeleteFramebuffers(1,&shadowFBO);
     glfwDestroyWindow(gWin);
     glfwTerminate();
     return 0;

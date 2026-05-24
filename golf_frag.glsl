@@ -28,7 +28,8 @@ in vec2 vUV;
 
 uniform int       uSurface;
 uniform sampler2D uTex;
-uniform int       uUseTex;  // 1 = sample uTex and override calcSurface colour
+uniform int       uUseTex;     // 1 = sample uTex and override calcSurface colour
+uniform vec2      uTexOffset;  // UV offset for texture sampling (default (0,0))
 uniform float uTime;
 uniform vec3  uLightDir;      // sun direction (world-space)
 uniform vec3  uLightColor;    // sun color
@@ -45,7 +46,28 @@ uniform vec3  uSpotDir;       // normalised direction
 uniform float uSpotCutoff;    // cos of cone half-angle
 uniform float uSpotOuter;     // cos of outer cone (soft edge)
 
+uniform sampler2D uShadowMap;
+uniform mat4      uLightSpace;
+uniform int       uShadowOn;
+
 out vec4 FragColor;
+
+// 3×3 PCF shadow with slope-based bias
+float computeShadow(){
+    vec4 lsPos = uLightSpace * vec4(vFragPos, 1.0);
+    vec3 proj  = lsPos.xyz / lsPos.w * 0.5 + 0.5;
+    if(proj.x<0.0||proj.x>1.0||proj.y<0.0||proj.y>1.0||proj.z>1.0) return 0.0;
+    float NdotL = max(dot(normalize(vNormal), normalize(uLightDir)), 0.0);
+    float bias  = mix(0.003, 0.0003, NdotL);
+    float shadow = 0.0;
+    vec2 sz = 1.0 / vec2(textureSize(uShadowMap, 0));
+    for(int x=-1;x<=1;x++)
+        for(int y=-1;y<=1;y++){
+            float d = texture(uShadowMap, proj.xy + vec2(x,y)*sz).r;
+            shadow += (proj.z - bias > d) ? 1.0 : 0.0;
+        }
+    return shadow / 9.0;
+}
 
 float hash(vec2 p){
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -151,9 +173,13 @@ vec3 calcSurface(){
         // Cup/hole — black
         col = vec3(0.05, 0.05, 0.05);
     } else if (uSurface == 20){
-        // Restaurant roof — terracotta/clay
-        float n = fbm(vUV * 5.0);
-        col = vec3(0.72+0.08*n, 0.32+0.06*n, 0.18+0.04*n);
+        // Roof tile — dark slate/charcoal, staggered interlocking pattern
+        vec2 tUV  = vUV * vec2(10.0, 8.0);
+        float row = floor(tUV.y);
+        vec2  tF  = fract(tUV + vec2(mod(row, 2.0) * 0.5, 0.0));
+        float grout = step(0.05, tF.x) * step(0.05, tF.y);
+        float baseN = fbm(vUV * 6.0) * 0.05;
+        col = mix(vec3(0.10, 0.10, 0.12), vec3(0.21+baseN, 0.22+baseN, 0.25+baseN), grout);
     } else if (uSurface == 21){
         // Red brick path — staggered bond pattern
         float row  = floor(vUV.y * 8.0);
@@ -241,7 +267,7 @@ void main(){
 
     // Texture override (rock BMP or plant PNG with alpha cutout)
     if (uUseTex == 1){
-        vec4 t = texture(uTex, vUV);
+        vec4 t = texture(uTex, vUV + uTexOffset);
         if (t.a < 0.15) discard;
         col = t.rgb;
     }
@@ -252,16 +278,20 @@ void main(){
         return;
     }
 
-    // Sun light
-    float sunDiff = max(dot(norm, normalize(uLightDir)), 0.0);
+    // Sun light — two-sided for billboard leaves so back-facing fronds aren't black
+    float rawDot  = dot(norm, normalize(uLightDir));
+    float sunDiff = (uSurface == 12) ? abs(rawDot) : max(rawDot, 0.0);
     // smooth sun based on time
     float sunFactor = 0.0;
     if (uTimeOfDay >= 0.25 && uTimeOfDay <= 0.75)
         sunFactor = sin((uTimeOfDay - 0.25) / 0.5 * 3.14159);
     sunFactor = clamp(sunFactor, 0.0, 1.0);
 
+    float shadowFactor = (uShadowOn == 1) ? computeShadow() : 0.0;
+    float sunMult = sunFactor * (1.0 - shadowFactor * 0.75);
+
     vec3 lighting = col * uAmbient;
-    lighting += col * sunDiff * sunFactor * uLightColor;
+    lighting += col * sunDiff * sunMult * uLightColor;
 
     // Specular (for water, ball)
     if (uSurface == 5 || uSurface == 15){
@@ -269,7 +299,7 @@ void main(){
         vec3 reflDir  = reflect(-normalize(uLightDir), norm);
         float specPow = (uSurface == 5) ? 64.0 : 32.0;
         float spec = pow(max(dot(viewDir, reflDir), 0.0), specPow);
-        lighting += vec3(spec) * sunFactor * 0.6;
+        lighting += vec3(spec) * sunMult * 0.6;
     }
 
     // Lamp posts (point lights at night)
@@ -278,7 +308,7 @@ void main(){
             vec3 ldir = uLampPos[i] - vFragPos;
             float dist = length(ldir);
             ldir = normalize(ldir);
-            float diff = max(dot(norm, ldir), 0.0);
+            float diff = (uSurface == 12) ? abs(dot(norm, ldir)) : max(dot(norm, ldir), 0.0);
             float att  = 1.0 / (1.0 + 0.18*dist + 0.06*dist*dist);
             lighting += col * diff * att * uLampColor;
         }

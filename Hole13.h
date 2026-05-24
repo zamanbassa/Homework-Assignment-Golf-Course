@@ -3,51 +3,44 @@
 
 #include "Hole.h"
 
-// ── Hole 13: Z-shape zigzag on concrete ──────────────────────────────────────
-// Three connected rectangular segments form a Z (top arm → middle connector →
-// bottom arm). Concrete floor for fast roll. Side barriers are the inner-corner
-// walls; the path itself enforces the zigzag.
+// ── Hole 14: Bowl with central depression ────────────────────────────────────
+// Paraboloid bowl sunken into the terrain. Cup sits at the lowest point;
+// gravity pulls the ball toward the centre. A small flat tee box leads in
+// from the north so the ball can rest before the player hits it.
 //
-//   x: 34   36                  40
-// z=-12  +-+-+------------------+   <- north wall of top arm
-//        |       TOP ARM (A)    |
-// z=-10  +-+-+------------------+   <- south of A east of B
-//        | B |
-//        | B |  CONNECTOR
-//        | B |
-// z=-6   +-+-+--+--+--+--+--+   <- north of C west of B
-//        |       BOTTOM ARM (C)
-// z=-4   +---+--+--+--+--+--+
-//        30                 36
+// Bowl surface: y(r) = -DEPTH * (1 - r²/R²)
+// terrainForce returns slope-induced force pulling toward centre.
 
-// Segment A — top arm (EW, tee at east end)
-static const float H13_AXW   = 34.0f;
-static const float H13_AXE   = 40.0f;
-static const float H13_AZN   = -12.0f;
-static const float H13_AZS   = -10.0f;
+// Bowl: visible sand disk on top of grass + paraboloid mesh below for physics.
+// Positioned roughly between zigzag (cup z=-5) and S-curve (tee z=6).
+static const float H13_CX     = 32.0f;   // bowl centre x
+static const float H13_CZ     =  2.0f;   // bowl centre z (shifted south, closer to H14)
+static const float H13_R      =  3.0f;   // bowl outer radius
+static const float H13_DEPTH  =  2.0f;   // depth at centre (deeper for visible slope)
 
-// Segment B — middle connector (NS)
-static const float H13_BXW   = 34.0f;
-static const float H13_BXE   = 36.0f;
-static const float H13_BZN   = -10.0f;
-static const float H13_BZS   =  -6.0f;
+// Flat tee box (more gap from zigzag, in the middle of the H12-H14 gap)
+static const float H13_TXW    = 30.0f;
+static const float H13_TXE    = 34.0f;
+static const float H13_TZN    = -2.0f;
+static const float H13_TZS    = -1.0f;
 
-// Segment C — bottom arm (EW, cup at west end)
-static const float H13_CXW   = 30.0f;
-static const float H13_CXE   = 36.0f;
-static const float H13_CZN   =  -6.0f;
-static const float H13_CZS   =  -4.0f;
-
-static const float H13_WH    =  0.45f;
-static const float H13_WTH   =  0.28f;
+static const float H13_WH     =  0.40f;
+static const float H13_WTH    =  0.25f;
 
 class Hole13 : public Hole {
+    Mesh mBowl;       // paraboloid bowl mesh, centred on origin
+    Mesh mSandDisk;   // flat sand disk above grass — makes the bowl visible
 public:
     Hole13(const Mesh* q, const Mesh* b, const Mesh* c, const Mesh* t);
+    ~Hole13();
+
     void render(const mat4& vp) const override;
     void wallCollide(vec3& pos, vec3& vel) const override;
     bool nearCup(const vec3& pos) const override;
     vec3 getTeePos() const override;
+
+    float groundY(const vec3& pos) const override;
+    vec3  terrainForce(const vec3& pos) const override;
 };
 
 #endif
