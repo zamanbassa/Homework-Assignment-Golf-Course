@@ -4,7 +4,6 @@
 
 static const float PI16 = 3.14159265358979f;
 
-// Flat circular disk mesh at given y. Single fan from centre.
 static Mesh h16_makeDisk(float radius, float y, int segs = 48) {
     std::vector<Vertex>   V;
     std::vector<unsigned> I;
@@ -26,7 +25,6 @@ static Mesh h16_makeDisk(float radius, float y, int segs = 48) {
     return upload(V, I);
 }
 
-// Annular ring (between inner & outer radii) at given y. Used for the water perimeter.
 static Mesh h16_makeAnnulus(float rIn, float rOut, float y, int segs = 48) {
     std::vector<Vertex>   V;
     std::vector<unsigned> I;
@@ -59,15 +57,13 @@ Hole16::~Hole16() {
 }
 
 void Hole16::render(const mat4& vp) const {
-    // Water annulus around the island (surface 5 = animated water)
     { mat4 m = glm::translate(mat4(1), {H16_CX, 0.f, H16_CZ});
       draw(mWater, m, vp, 5); }
 
-    // Island green (grass)
     { mat4 m = glm::translate(mat4(1), {H16_CX, 0.f, H16_CZ});
       draw(mIsland, m, vp, 0); }
 
-    // Tee strip (north of water)
+    // tee
     { float midX = (H16_TXW + H16_TXE) * 0.5f;
       float midZ = (H16_TZN + H16_TZS) * 0.5f;
       mat4 m = glm::translate(mat4(1), {midX, 0.f, midZ});
@@ -79,7 +75,6 @@ void Hole16::render(const mat4& vp) const {
       draw(*mQuad, t, vp, 1);
     }
 
-    // Tee box walls — 3 sides (south opens toward the water)
     drawWall(vp, (H16_TXW + H16_TXE) * 0.5f, H16_WH * 0.5f, H16_TZN - H16_WTH * 0.5f,
              (H16_TXE - H16_TXW) + H16_WTH * 2.f, H16_WH, H16_WTH);
     drawWall(vp, H16_TXW - H16_WTH * 0.5f, H16_WH * 0.5f, (H16_TZN + H16_TZS) * 0.5f,
@@ -87,15 +82,12 @@ void Hole16::render(const mat4& vp) const {
     drawWall(vp, H16_TXE + H16_WTH * 0.5f, H16_WH * 0.5f, (H16_TZN + H16_TZS) * 0.5f,
              H16_WTH, H16_WH, (H16_TZS - H16_TZN) + H16_WTH * 2.f);
 
-    // Rounded brick wall around the island — many small segments for a smooth
-    // curve. Compact (tight to island edge) with a gap on the north for approach.
     {
         const int RIM_SEGS = 60;
-        const float rimR   = H16_ISLAND_R + 0.03f;  // tight to island edge
+        const float rimR   = H16_ISLAND_R + 0.03f;
         const float segW   = 2.f * PI16 * rimR / RIM_SEGS;
         for (int i = 0; i < RIM_SEGS; i++) {
             float th = 2.f * PI16 * (i + 0.5f) / RIM_SEGS;
-            // North gap (negative sin(th) — toward smaller z relative to centre)
             if (sinf(th) < -0.55f) continue;
             float dx = cosf(th) * rimR;
             float dz = sinf(th) * rimR;
@@ -106,7 +98,6 @@ void Hole16::render(const mat4& vp) const {
         }
     }
 
-    // Cup on the island (slightly raised to sit on island surface)
     {
         const float HALF_PI = 1.5707963f;
         const float cy = H16_ISLAND_Y + 0.01f;
@@ -126,7 +117,6 @@ void Hole16::wallCollide(vec3& pos, vec3& vel) const {
     const float r  = 0.72f;
     const float BR = 0.08f;
 
-    // Tee-box walls
     if (pos.z < H16_TZS + 0.5f && pos.z > H16_TZN - 1.f
         && pos.x > H16_TXW - 1.f && pos.x < H16_TXE + 1.f) {
         if (pos.z - BR < H16_TZN) {
@@ -140,7 +130,6 @@ void Hole16::wallCollide(vec3& pos, vec3& vel) const {
         }
     }
 
-    // Island rim — only when ball is on/over the island and has crossed the rim
     float dx = pos.x - H16_CX;
     float dz = pos.z - H16_CZ;
     float d  = sqrtf(dx * dx + dz * dz);
@@ -164,8 +153,6 @@ vec3 Hole16::getTeePos() const {
     return { (H16_TXW + H16_TXE) * 0.5f, 0.08f, (H16_TZN + H16_TZS) * 0.5f };
 }
 
-// On the island the ball sits at H16_ISLAND_Y + BALL_R. Above the water and
-// elsewhere it sits on the grass at BALL_R.
 float Hole16::groundY(const vec3& pos) const {
     float dx = pos.x - H16_CX;
     float dz = pos.z - H16_CZ;
@@ -174,14 +161,12 @@ float Hole16::groundY(const vec3& pos) const {
     return BALL_R_CONST;
 }
 
-// Small incline on the island: tilted so the cup at the centre is the low
-// point. Returns a gentle inward force when the ball is on the green.
 vec3 Hole16::terrainForce(const vec3& pos) const {
     float dx = pos.x - H16_CX;
     float dz = pos.z - H16_CZ;
     float d2 = dx * dx + dz * dz;
     if (d2 < 0.0001f || d2 > H16_ISLAND_R * H16_ISLAND_R) return vec3(0.f);
     float d  = sqrtf(d2);
-    float mag = H16_INCLINE * 4.0f;   // gentle pull toward centre
+    float mag = H16_INCLINE * 4.0f;
     return vec3(-mag * dx / d, 0.f, -mag * dz / d);
 }

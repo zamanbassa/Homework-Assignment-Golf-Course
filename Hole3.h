@@ -3,7 +3,7 @@
 
 #include "Hole.h"
 
-// ── Hole 3: figure-8 (two circular loops joined N-S) ─────────────────────────
+// Hole 3: figure-8
 static const float H3_CX    = -33.0f;
 static const float H3_CZ    =  -1.0f;
 static const float H3_R     =   3.5f;

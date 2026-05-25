@@ -3,7 +3,7 @@
 
 #include "Hole.h"
 
-// ── Hole 5: regular pentagon fairway ─────────────────────────────────────────
+// Hole 5: pentagon
 static const float H5_CX   = -33.0f;
 static const float H5_CZ   = -31.0f;
 static const float H5_R    =   6.0f;

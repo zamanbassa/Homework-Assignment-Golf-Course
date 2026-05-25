@@ -3,22 +3,20 @@
 
 using glm::vec3;
 
-// ─── Centreline polyline (smooth double curve from tee to cup) ────────────────
 static std::vector<vec3> h14_buildCenterline() {
     return {
-        {32.0f, 0.f,  6.0f},   // tee (close to bowl cup at 32,1)
+        {32.0f, 0.f,  6.0f},
         {32.0f, 0.f,  7.5f},
-        {31.5f, 0.f,  9.0f},   // first bend — curving south-west
+        {31.5f, 0.f,  9.0f},
         {30.5f, 0.f, 10.2f},
-        {29.5f, 0.f, 11.0f},   // mid — slight inflection
+        {29.5f, 0.f, 11.0f},
         {28.5f, 0.f, 11.8f},
-        {27.5f, 0.f, 12.6f},   // second bend — curving west again
+        {27.5f, 0.f, 12.6f},
         {26.0f, 0.f, 13.4f},
-        {25.0f, 0.f, 14.0f},   // cup
+        {25.0f, 0.f, 14.0f},
     };
 }
 
-// ─── Floor strip mesh: flat triangles between left and right edge points ─────
 static Mesh h14_makeFloor(const std::vector<vec3>& pts, float hw) {
     std::vector<Vertex>   V;
     std::vector<unsigned> I;
@@ -42,8 +40,6 @@ static Mesh h14_makeFloor(const std::vector<vec3>& pts, float hw) {
     return upload(V, I);
 }
 
-// ─── Wall strip mesh: vertical wall following the strip edge ─────────────────
-// side = -1 for left, +1 for right. WallThickness extrudes outward.
 static Mesh h14_makeWall(const std::vector<vec3>& pts, float hw, float wth,
                           float wallH, int side) {
     std::vector<Vertex>   V;
@@ -57,7 +53,7 @@ static Mesh h14_makeWall(const std::vector<vec3>& pts, float hw, float wth,
         if      (i == 0)     dir = glm::normalize(pts[1]   - pts[0]);
         else if (i == n - 1) dir = glm::normalize(pts[n-1] - pts[n-2]);
         else                 dir = glm::normalize(pts[i+1] - pts[i-1]);
-        vec3 perp = {-dir.z, 0.f, dir.x};   // points to +right side
+        vec3 perp = {-dir.z, 0.f, dir.x};
         float u   = (float)i / (n - 1);
 
         vec3 innerBase = {pts[i].x + perp.x * inner, 0.f,    pts[i].z + perp.z * inner};
@@ -65,17 +61,15 @@ static Mesh h14_makeWall(const std::vector<vec3>& pts, float hw, float wth,
         vec3 innerTop  = {innerBase.x,               wallH, innerBase.z};
         vec3 outerTop  = {outerBase.x,               wallH, outerBase.z};
 
-        // Inward-facing normal (toward fairway centre)
         vec3 nIn = {-perp.x * (float)side, 0.f, -perp.z * (float)side};
 
-        V.push_back({innerBase, nIn, {u, 0.f}});  // 0 inner base
-        V.push_back({innerTop,  nIn, {u, 1.f}});  // 1 inner top
-        V.push_back({outerBase, -nIn, {u, 0.f}}); // 2 outer base
-        V.push_back({outerTop,  -nIn, {u, 1.f}}); // 3 outer top
+        V.push_back({innerBase, nIn,  {u, 0.f}});
+        V.push_back({innerTop,  nIn,  {u, 1.f}});
+        V.push_back({outerBase, -nIn, {u, 0.f}});
+        V.push_back({outerTop,  -nIn, {u, 1.f}});
     }
     for (int i = 0; i < n - 1; i++) {
         unsigned a = 4 * i;
-        // Inner face (4 verts: a, a+1, a+4, a+5)
         if (side > 0) {
             I.insert(I.end(), {a,     a + 4, a + 1, a + 1, a + 4, a + 5});
             I.insert(I.end(), {a + 2, a + 3, a + 6, a + 3, a + 7, a + 6});
@@ -105,10 +99,9 @@ Hole14::~Hole14() {
 }
 
 void Hole14::render(const mat4& vp) const {
-    // Floor (grass)
     draw(mFloor, mat4(1), vp, 0);
 
-    // Tee box at the tee end (oriented along initial direction)
+    // tee
     {
         vec3 dir = glm::normalize(mCenter[1] - mCenter[0]);
         float ang = atan2f(dir.x, dir.z);
@@ -118,11 +111,9 @@ void Hole14::render(const mat4& vp) const {
         draw(*mQuad, m, vp, 1);
     }
 
-    // Side walls
     draw(mWallL, mat4(1), vp, 8);
     draw(mWallR, mat4(1), vp, 8);
 
-    // End caps (tee + cup ends) — short box walls perpendicular to centreline
     auto endCap = [&](const vec3& p, const vec3& dir) {
         float ang = atan2f(dir.x, dir.z);
         mat4 m = glm::translate(mat4(1), {p.x, H14_WH * 0.5f, p.z});
@@ -133,19 +124,15 @@ void Hole14::render(const mat4& vp) const {
     endCap(mCenter.front(), glm::normalize(mCenter[1] - mCenter[0]));
     endCap(mCenter.back(),  glm::normalize(mCenter.back() - mCenter[mCenter.size() - 2]));
 
-    // Cup
     drawCup(vp, H14_CUP_X, H14_CUP_Z);
 }
 
-// Distance-from-centreline collision: for each segment, find closest point and
-// push the ball back inside the corridor if it has crossed an edge.
 void Hole14::wallCollide(vec3& pos, vec3& vel) const {
     const float r  = 0.72f;
     const float BR = 0.08f;
     const int n = (int)mCenter.size();
     if (n < 2) return;
 
-    // Find the closest centreline segment
     int   bestSeg = 0;
     float bestD2  = 1e9f;
     float bestT   = 0.f;
@@ -163,7 +150,6 @@ void Hole14::wallCollide(vec3& pos, vec3& vel) const {
         if (d2 < bestD2) { bestD2 = d2; bestSeg = i; bestT = t; }
     }
 
-    // Compute perpendicular distance and signed side relative to segment direction
     vec3 a   = mCenter[bestSeg];
     vec3 b   = mCenter[bestSeg + 1];
     vec3 dir = glm::normalize(b - a);
@@ -185,7 +171,6 @@ void Hole14::wallCollide(vec3& pos, vec3& vel) const {
         }
     }
 
-    // End caps — only when ball is past first or last segment
     if (bestSeg == 0 && bestT <= 0.f) {
         vec3 d0 = glm::normalize(mCenter[1] - mCenter[0]);
         float along = (pos.x - mCenter[0].x) * d0.x + (pos.z - mCenter[0].z) * d0.z;
@@ -218,15 +203,14 @@ vec3 Hole14::getTeePos() const {
     return { H14_TEE_X, 0.08f, H14_TEE_Z };
 }
 
-// Tree positions on the outside of each curve — picked by hand alongside the strip.
 const std::vector<vec3>& Hole14::treePositions() {
     static const std::vector<vec3> pts = {
-        {33.6f, 0.f,  5.5f},   // beyond tee NE
-        {29.5f, 0.f,  8.8f},   // outside first bend (west)
-        {33.0f, 0.f, 10.0f},   // outside first bend (east)
+        {33.6f, 0.f,  5.5f},
+        {29.5f, 0.f,  8.8f},
+        {33.0f, 0.f, 10.0f},
         {26.8f, 0.f, 11.2f},
         {30.5f, 0.f, 12.0f},
-        {23.5f, 0.f, 14.5f},   // beyond cup SW
+        {23.5f, 0.f, 14.5f},
         {26.5f, 0.f, 15.0f},
     };
     return pts;

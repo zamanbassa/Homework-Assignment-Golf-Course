@@ -3,36 +3,20 @@
 
 #include "Hole.h"
 
-// ── Hole 12: Z-shape zigzag on concrete ──────────────────────────────────────
-// Three connected rectangular segments form a Z (top arm → connector → bottom
-// arm). Concrete floor. Tee at east end of top arm, cup at west end of bottom.
-// Shifted 2 units south of original Abdelrahman layout.
-//
-//   x: 34   36                  40
-// z=-10  +-+-+------------------+   <- north wall of top arm
-//        |       TOP ARM (A)    |
-//  z=-8  +-+-+------------------+   <- south of A / east of B
-//        | B |
-//        | B |  CONNECTOR
-//        | B |
-//  z=-4  +-+-+--+--+--+--+--+   <- north of C / west of B
-//        |       BOTTOM ARM (C)
-//  z=-2  +---+--+--+--+--+--+
-//        30                 36
-
-// Segment A — top arm (EW, tee at east end)
+// Hole 12: Z-zigzag
+// Segment A
 static const float H12_AXW   = 34.0f;
 static const float H12_AXE   = 40.0f;
 static const float H12_AZN   = -10.0f;
 static const float H12_AZS   =  -8.0f;
 
-// Segment B — middle connector (NS)
+// Segment B
 static const float H12_BXW   = 34.0f;
 static const float H12_BXE   = 36.0f;
 static const float H12_BZN   =  -8.0f;
 static const float H12_BZS   =  -4.0f;
 
-// Segment C — bottom arm (EW, cup at west end)
+// Segment C
 static const float H12_CXW   = 30.0f;
 static const float H12_CXE   = 36.0f;
 static const float H12_CZN   =  -4.0f;

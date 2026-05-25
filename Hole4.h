@@ -3,7 +3,7 @@
 
 #include "Hole.h"
 
-// ── Hole 4: banana arc curving left (west) ────────────────────────────────────
+// Hole 4: banana arc
 static const float H4_CX   = -37.0f;
 static const float H4_CZ   = -11.0f;
 static const float H4_RI   =   7.0f;

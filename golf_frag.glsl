@@ -28,23 +28,23 @@ in vec2 vUV;
 
 uniform int       uSurface;
 uniform sampler2D uTex;
-uniform int       uUseTex;     // 1 = sample uTex and override calcSurface colour
-uniform vec2      uTexOffset;  // UV offset for texture sampling (default (0,0))
+uniform int       uUseTex;
+uniform vec2      uTexOffset;
 uniform float uTime;
-uniform vec3  uLightDir;      // sun direction (world-space)
-uniform vec3  uLightColor;    // sun color
-uniform float uAmbient;       // ambient intensity
+uniform vec3  uLightDir;
+uniform vec3  uLightColor;
+uniform float uAmbient;
 uniform vec3  uCamPos;
-uniform float uTimeOfDay;     // 0-1
+uniform float uTimeOfDay;
 uniform int   uLampCount;
-uniform vec3  uLampPos[32];
+uniform vec3  uLampPos[48];
 uniform vec3  uLampColor;
-uniform int   uLampsOn;       // 1 if night
-uniform int   uSpotOn;        // 1 = spotlight active
-uniform vec3  uSpotPos;       // drone world position
-uniform vec3  uSpotDir;       // normalised direction
-uniform float uSpotCutoff;    // cos of cone half-angle
-uniform float uSpotOuter;     // cos of outer cone (soft edge)
+uniform int   uLampsOn;
+uniform int   uSpotOn;
+uniform vec3  uSpotPos;
+uniform vec3  uSpotDir;
+uniform float uSpotCutoff;
+uniform float uSpotOuter;
 
 uniform sampler2D uShadowMap;
 uniform mat4      uLightSpace;
@@ -52,7 +52,7 @@ uniform int       uShadowOn;
 
 out vec4 FragColor;
 
-// 3×3 PCF shadow with slope-based bias
+// PCF shadow
 float computeShadow(){
     vec4 lsPos = uLightSpace * vec4(vFragPos, 1.0);
     vec3 proj  = lsPos.xyz / lsPos.w * 0.5 + 0.5;
@@ -89,91 +89,91 @@ vec3 calcSurface(){
     vec3 col = vec3(1.0);
 
     if (uSurface == 0){
-        // Fairway/green — medium green
+        // grass
         float n = fbm(vUV * 12.0);
         float stripe = 0.5 + 0.5*sin(vUV.x * 40.0 + vUV.y * 5.0);
         col = vec3(0.12, 0.45+0.08*stripe, 0.10) * (0.85 + 0.15*n);
     } else if (uSurface == 1){
-        // Tee box — bright manicured green
+        // tee
         float n = fbm(vUV * 25.0);
         col = vec3(0.18, 0.62, 0.15) * (0.90 + 0.10*n);
     } else if (uSurface == 2){
-        // Rough — darker patchy grass
+        // rough
         float n = fbm(vUV * 8.0);
         col = vec3(0.10, 0.32+0.10*n, 0.08);
     } else if (uSurface == 3){
-        // Path — stone/concrete walkway
+        // path
         vec2 cell = fract(vUV * 3.0);
         float grout = step(cell.x,0.05)+step(1.0-cell.x,0.05)+step(cell.y,0.05)+step(1.0-cell.y,0.05);
         float shade = 0.55 + 0.15*hash(floor(vUV*3.0));
         col = mix(vec3(shade,shade*0.95,shade*0.88), vec3(0.30,0.30,0.30), clamp(grout,0.0,1.0));
     } else if (uSurface == 4){
-        // Sand bunker
+        // sand
         float n = fbm(vUV * 22.0);
         col = vec3(0.88, 0.78, 0.52) * (0.75 + 0.25*n);
     } else if (uSurface == 5){
-        // Water — animated, muted grey-blue
+        // water
         float dep = 0.55 + 0.15*sin(vUV.x*7.0+uTime);
         col = vec3(0.26+0.06*dep, 0.36+0.08*dep, 0.50+0.08*dep);
     } else if (uSurface == 6){
-        // Wood (bridges/obstacles)
+        // wood
         float grain = fbm(vec2(vUV.x*2.0, vUV.y*30.0));
         col = vec3(0.55+0.15*grain, 0.38+0.10*grain, 0.18+0.05*grain);
     } else if (uSurface == 7){
-        // Windmill body — smooth grey stone cylinder
+        // windmill body
         float n = fbm(vUV * 6.0);
         col = vec3(0.68+0.08*n, 0.66+0.08*n, 0.62+0.06*n);
     } else if (uSurface == 8){
-        // Concrete walls/borders
+        // concrete
         float n = fbm(vUV * 4.0);
         col = vec3(0.62+0.10*n, 0.62+0.10*n, 0.60+0.08*n);
     } else if (uSurface == 9){
-        // Restaurant floor — terracotta tiles
+        // terracotta
         vec2 cell = fract(vUV * 4.0);
         float grout = step(cell.x,0.06)+step(1.0-cell.x,0.06)+step(cell.y,0.06)+step(1.0-cell.y,0.06);
         float var = 0.85 + 0.15*hash(floor(vUV*4.0));
         col = mix(vec3(0.78*var, 0.42*var, 0.28*var), vec3(0.35,0.30,0.28), clamp(grout,0.0,1.0));
     } else if (uSurface == 10){
-        // Rock/boulder
+        // rock
         float n = fbm(vUV * 9.0);
         float coarse = hash(floor(vUV * 5.0));
         col = vec3(0.40+0.20*coarse+0.08*n, 0.38+0.18*coarse+0.06*n, 0.34+0.16*coarse+0.05*n);
     } else if (uSurface == 11){
-        // Palm tree trunk — brown with ring texture
+        // trunk
         float ring = 0.5 + 0.5*sin(vUV.y * 60.0);
         float n = fbm(vUV * 8.0);
         col = vec3(0.45+0.10*ring, 0.28+0.08*ring, 0.12+0.05*ring) * (0.85+0.15*n);
     } else if (uSurface == 12){
-        // Palm leaf — bright tropical green
+        // palm leaf
         float n = fbm(vUV * 15.0);
         float vein = step(abs(vUV.x - 0.5), 0.03);
         col = mix(vec3(0.10, 0.52+0.12*n, 0.08), vec3(0.55, 0.65, 0.20), vein*0.3);
     } else if (uSurface == 13){
-        // Lamp post — dark metal
+        // lamp post
         float n = fbm(vUV * 12.0) * 0.1;
         col = vec3(0.20+n, 0.20+n, 0.22+n);
     } else if (uSurface == 14){
-        // Lamp glow — emissive yellow-white
+        // lamp glow
         col = uLampsOn == 1 ? vec3(1.0, 0.92, 0.65) : vec3(0.25, 0.25, 0.22);
     } else if (uSurface == 15){
-        // Golf ball — white
+        // ball
         col = vec3(0.96, 0.96, 0.96);
     } else if (uSurface == 16){
-        // Flag pole — white metal
+        // flag pole
         col = vec3(0.85, 0.85, 0.85);
     } else if (uSurface == 17){
-        // Flag — bright red
+        // flag
         float wave = 0.5 + 0.5*sin(vUV.x * 12.0 + uTime * 3.0);
         col = vec3(0.90, 0.10+0.05*wave, 0.10);
     } else if (uSurface == 18){
-        // Windmill blade — white with grey edge
+        // windmill blade
         float edge = step(0.9, vUV.x) + step(0.9, vUV.y) + step(vUV.x, 0.1) + step(vUV.y, 0.1);
         col = mix(vec3(0.94, 0.94, 0.94), vec3(0.65, 0.65, 0.68), clamp(edge, 0.0, 1.0));
     } else if (uSurface == 19){
-        // Cup/hole — black
+        // cup
         col = vec3(0.05, 0.05, 0.05);
     } else if (uSurface == 20){
-        // Roof tile — dark slate/charcoal, staggered interlocking pattern
+        // roof tile
         vec2 tUV  = vUV * vec2(10.0, 8.0);
         float row = floor(tUV.y);
         vec2  tF  = fract(tUV + vec2(mod(row, 2.0) * 0.5, 0.0));
@@ -181,7 +181,7 @@ vec3 calcSurface(){
         float baseN = fbm(vUV * 6.0) * 0.05;
         col = mix(vec3(0.10, 0.10, 0.12), vec3(0.21+baseN, 0.22+baseN, 0.25+baseN), grout);
     } else if (uSurface == 21){
-        // Red brick path — staggered bond pattern
+        // red brick
         float row  = floor(vUV.y * 8.0);
         float off  = mod(row, 2.0) * 0.5;
         vec2  bUV  = vec2(fract(vUV.x * 4.0 + off), fract(vUV.y * 8.0));
@@ -192,61 +192,61 @@ vec3 calcSurface(){
                   vec3(0.44, 0.42, 0.40),
                   clamp(mort, 0.0, 1.0));
     } else if (uSurface == 22){
-        // Hedge / boundary bush
+        // hedge
         float n = fbm(vUV * 12.0);
         float tip = 0.5 + 0.5*sin(vUV.x * 18.0 + vUV.y * 7.0);
         col = vec3(0.05+0.03*n, 0.24+0.10*n+0.04*tip, 0.05+0.03*n);
     } else if (uSurface == 23){
-        // Soil / dirt base
+        // soil
         float n = fbm(vUV * 7.0);
         col = vec3(0.38+0.12*n, 0.28+0.07*n, 0.17+0.05*n);
     } else if (uSurface == 24){
-        // Drone body — charcoal grey
+        // drone body
         float n = fbm(vUV * 8.0) * 0.04;
         col = vec3(0.25+n, 0.25+n, 0.28+n);
     } else if (uSurface == 25){
-        // Drone propellers — dark grey
+        // propeller
         float n = fbm(vUV * 6.0) * 0.03;
         col = vec3(0.16+n, 0.16+n, 0.18+n);
     } else if (uSurface == 26){
-        // Dark earth — pond island and plateau slopes
+        // dark earth
         float n = fbm(vUV * 10.0);
         float coarse = hash(floor(vUV * 5.0));
         col = vec3(0.22+0.08*coarse+0.05*n, 0.14+0.05*coarse+0.03*n, 0.06+0.03*coarse+0.02*n);
     } else if (uSurface == 27){
-        // Windmill base — very dark brown
+        // windmill base
         float n = fbm(vUV * 6.0);
         col = vec3(0.28+0.06*n, 0.15+0.04*n, 0.06+0.02*n);
     } else if (uSurface == 28){
-        // Windmill step 1 — dark brown
+        // step 1
         float n = fbm(vUV * 7.0);
         col = vec3(0.40+0.08*n, 0.22+0.05*n, 0.09+0.03*n);
     } else if (uSurface == 29){
-        // Windmill steps 2-3 — medium brown
+        // step 2-3
         float n = fbm(vUV * 7.0);
         col = vec3(0.52+0.09*n, 0.32+0.06*n, 0.14+0.04*n);
     } else if (uSurface == 30){
-        // Windmill step 4 + roof — light brown/tan
+        // step 4
         float n = fbm(vUV * 8.0);
         col = vec3(0.65+0.10*n, 0.44+0.07*n, 0.22+0.05*n);
     } else if (uSurface == 31){
-        // Window glass — dark blue-grey
+        // glass
         float n = fbm(vUV * 4.0);
         col = vec3(0.22+0.04*n, 0.32+0.07*n, 0.48+0.10*n);
     } else if (uSurface == 32){
-        // Door — dark warm wood
+        // door
         float grain = fbm(vec2(vUV.x*1.5, vUV.y*25.0));
         col = vec3(0.42+0.10*grain, 0.26+0.06*grain, 0.12+0.03*grain);
     } else if (uSurface == 33){
-        // Window frame — dark anthracite steel
+        // frame
         float n = fbm(vUV * 8.0) * 0.02;
         col = vec3(0.17+n, 0.18+n, 0.20+n);
     } else if (uSurface == 34){
-        // Sign board — warm cream/ivory
+        // sign
         float n = fbm(vUV * 3.0) * 0.04;
         col = vec3(0.92+n, 0.88+n, 0.78+n);
     } else {
-        col = vec3(1.0, 0.0, 1.0); // missing surface — magenta
+        col = vec3(1.0, 0.0, 1.0); // missing
     }
 
     return col;
@@ -255,7 +255,7 @@ vec3 calcSurface(){
 void main(){
     vec3 norm = normalize(vNormal);
 
-    // Water: animated normal perturbation for ripple effect
+    // water ripple
     if (uSurface == 5){
         float wx = sin(vUV.x*18.0 + uTime*2.2) * 0.07;
         float wz = sin(vUV.y*13.0 + uTime*1.7) * 0.06;
@@ -265,23 +265,22 @@ void main(){
 
     vec3 col  = calcSurface();
 
-    // Texture override (rock BMP or plant PNG with alpha cutout)
+    // texture
     if (uUseTex == 1){
         vec4 t = texture(uTex, vUV + uTexOffset);
         if (t.a < 0.15) discard;
         col = t.rgb;
     }
 
-    // Emissive — skip lighting
+    // emissive
     if (uSurface == 14){
         FragColor = vec4(col, 1.0);
         return;
     }
 
-    // Sun light — two-sided for billboard leaves so back-facing fronds aren't black
+    // sun light
     float rawDot  = dot(norm, normalize(uLightDir));
     float sunDiff = (uSurface == 12) ? abs(rawDot) : max(rawDot, 0.0);
-    // smooth sun based on time
     float sunFactor = 0.0;
     if (uTimeOfDay >= 0.25 && uTimeOfDay <= 0.75)
         sunFactor = sin((uTimeOfDay - 0.25) / 0.5 * 3.14159);
@@ -293,7 +292,7 @@ void main(){
     vec3 lighting = col * uAmbient;
     lighting += col * sunDiff * sunMult * uLightColor;
 
-    // Specular (for water, ball)
+    // specular
     if (uSurface == 5 || uSurface == 15){
         vec3 viewDir  = normalize(uCamPos - vFragPos);
         vec3 reflDir  = reflect(-normalize(uLightDir), norm);
@@ -302,7 +301,7 @@ void main(){
         lighting += vec3(spec) * sunMult * 0.6;
     }
 
-    // Lamp posts (point lights at night)
+    // lamps
     if (uLampsOn == 1){
         for (int i = 0; i < uLampCount; i++){
             vec3 ldir = uLampPos[i] - vFragPos;

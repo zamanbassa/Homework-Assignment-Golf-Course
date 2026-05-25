@@ -32,6 +32,21 @@ void Hole4::render(const mat4& vp) const {
         m=glm::scale(m,{H4_RO-H4_RI+WTH*2,WH,WTH});
         draw(*mBox,m,vp,21);
     }
+    // tunnel arch
+    {
+        const float MID_ANG = (H4_T0 + H4_T1) * 0.5f;
+        float cos_m  = cosf(MID_ANG), sin_m = sinf(MID_ANG);
+        float yrot   = atan2f(-sin_m, cos_m);
+        float rmid_v = (H4_RI + H4_RO) * 0.5f;
+        float ax = cx + rmid_v * cos_m, az = cz + rmid_v * sin_m;
+        { mat4 m = glm::translate(mat4(1),{cx + H4_RI*cos_m, 0.325f, cz + H4_RI*sin_m});
+          m = glm::scale(m, {0.30f, 0.65f, 0.30f}); draw(*mBox, m, vp, 6); }
+        { mat4 m = glm::translate(mat4(1),{cx + H4_RO*cos_m, 0.325f, cz + H4_RO*sin_m});
+          m = glm::scale(m, {0.30f, 0.65f, 0.30f}); draw(*mBox, m, vp, 6); }
+        { mat4 m = glm::translate(mat4(1),{ax, 0.74f, az});
+          m = glm::rotate(m, yrot, {0.f, 1.f, 0.f});
+          m = glm::scale(m, {H4_RO - H4_RI + 0.6f, 0.18f, 0.70f}); draw(*mBox, m, vp, 6); }
+    }
     float cx4=cx+RMID*cosf(H4_T0), cz4=cz+RMID*sinf(H4_T0);
     drawCup(vp, cx4, cz4);
 }

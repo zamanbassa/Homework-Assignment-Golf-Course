@@ -3,7 +3,7 @@
 
 #include "Hole.h"
 
-// ── Hole 7: S-shape (two connected semicircle arcs, travels east) ─────────────
+// Hole 7: S-shape
 static const float H7_Z0    = -46.5f;
 static const float H7_X0    = -16.0f;
 static const float H7_RA    =   5.0f;

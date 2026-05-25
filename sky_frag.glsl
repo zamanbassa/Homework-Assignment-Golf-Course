@@ -6,9 +6,6 @@ out vec4 FragColor;
 uniform float uTimeOfDay;
 uniform sampler2D skyTex;
 
-// --------------------------------------------------
-// Night sky
-// --------------------------------------------------
 vec3 nightColor(vec3 dir){
 
     float star = step(
@@ -24,17 +21,12 @@ vec3 nightColor(vec3 dir){
     return sky + vec3(star) * 0.8;
 }
 
-// --------------------------------------------------
-// Dawn
-// --------------------------------------------------
 vec3 dawnColor(vec3 dir){
 
     float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
 
     vec3 horizon = vec3(1.0, 0.45, 0.15);
     vec3 zenith  = vec3(0.35, 0.55, 0.95);
-
-    // Atmospheric lower hemisphere
     vec3 ground = mix(horizon, zenith, 0.15);
 
     if (dir.y < 0.0)
@@ -47,17 +39,12 @@ vec3 dawnColor(vec3 dir){
     return mix(horizon, zenith, h * h);
 }
 
-// --------------------------------------------------
-// Dusk
-// --------------------------------------------------
 vec3 duskColor(vec3 dir){
 
     float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
 
     vec3 horizon = vec3(1.0, 0.35, 0.10);
     vec3 zenith  = vec3(0.20, 0.22, 0.60);
-
-    // Atmospheric lower hemisphere
     vec3 ground = mix(horizon, zenith, 0.15);
 
     if (dir.y < 0.0)
@@ -70,35 +57,25 @@ vec3 duskColor(vec3 dir){
     return mix(horizon, zenith, h * h);
 }
 
-// --------------------------------------------------
-// Beautiful daytime sky WITH clouds
-// --------------------------------------------------
 vec3 daySky(vec3 dir){
 
     float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
 
 	vec3 horizon = vec3(0.55, 0.75, 0.95);
     vec3 zenith  = vec3(0.20, 0.50, 0.95);
-    vec3 ground  = vec3(0.40, 0.55, 0.70); // darker below horizon
+    vec3 ground  = vec3(0.40, 0.55, 0.70);
 
     vec3 baseSky;
     if (dir.y < 0.0)
         baseSky = mix(
             ground,
             horizon,
-            clamp(-dir.y * 6.0, 0.0, 1.0)  // steeper falloff below horizon
+            clamp(-dir.y * 6.0, 0.0, 1.0)
         );
     else
-        // Use pow() to sharpen the gradient — less lingering bright band
         baseSky = mix(horizon, zenith, pow(h, 1.8));
 
-    // -----------------------------------------
-    // Cloud texture overlay
-    // -----------------------------------------
-
     float u = atan(dir.z, dir.x) / (2.0 * 3.14159265) + 0.5;
-
-    // Lowered clouds
     float v = dir.y * 0.55 + 0.45;
 
     vec3 tex = texture(
@@ -106,14 +83,10 @@ vec3 daySky(vec3 dir){
         vec2(u, 1.0 - v)
     ).rgb;
 
-    // Bright regions become clouds
     float cloudMask = dot(tex, vec3(0.333));
-
-    // Soft cloud shaping
 	float horizonFade = smoothstep(0.0, 0.15, dir.y);
 	cloudMask = smoothstep(0.75, 0.98, cloudMask) * horizonFade;
 
-    // Blend clouds subtly
     vec3 finalSky = mix(
         baseSky,
         vec3(1.0),
@@ -138,7 +111,7 @@ void main(){
 
     }
 
-    // Night -> Dawn
+    // dawn
     else if (t < 0.30){
 
         float f = (t - 0.15) / 0.15;
@@ -151,7 +124,7 @@ void main(){
 
     }
 
-    // Dawn -> Day
+    // day
     else if (t < 0.40){
 
         float f = (t - 0.30) / 0.10;
@@ -164,14 +137,14 @@ void main(){
 
     }
 
-    // Full Day
+    // full day
     else if (t < 0.65){
 
         col = daySky(dir);
 
     }
 
-    // Day -> Dusk
+    // dusk
     else if (t < 0.75){
 
         float f = (t - 0.65) / 0.10;
@@ -184,7 +157,7 @@ void main(){
 
     }
 
-    // Dusk -> Night
+    // night
     else if (t < 0.85){
 
         float f = (t - 0.75) / 0.10;

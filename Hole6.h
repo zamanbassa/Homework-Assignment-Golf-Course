@@ -3,7 +3,7 @@
 
 #include "Hole.h"
 
-// ── Hole 6: L-shape (short N-S arm + long E-W arm heading east) ──────────────
+// Hole 6: L-shape
 static const float H6_CX     = -33.0f;
 static const float H6_TEE_Z  = -38.0f;
 static const float H6_S1_W   =   4.0f;

@@ -1,12 +1,11 @@
 #include "Hole15.h"
 #include <cmath>
 
-static const float H15_LEN    = H15_ZS - H15_ZN;             // 15.0
-static const float H15_MID_Z  = (H15_ZN + H15_ZS) * 0.5f;    // 34.5
-static const float H15_TEE_Z  = H15_ZN + 2.0f;               // 29.0
-static const float H15_CUP_Z  = H15_ZS - 2.0f;               // 40.0
+static const float H15_LEN    = H15_ZS - H15_ZN;
+static const float H15_MID_Z  = (H15_ZN + H15_ZS) * 0.5f;
+static const float H15_TEE_Z  = H15_ZN + 2.0f;
+static const float H15_CUP_Z  = H15_ZS - 2.0f;
 
-// Columns alternate sides along the corridor — forces a weave
 static const float H15_C1X = H15_CX - 0.6f, H15_C1Z = 21.0f;
 static const float H15_C2X = H15_CX + 0.6f, H15_C2Z = 23.5f;
 static const float H15_C3X = H15_CX - 0.6f, H15_C3Z = 26.0f;
@@ -16,7 +15,6 @@ Hole15::Hole15(const Mesh* q, const Mesh* b, const Mesh* c, const Mesh* t)
     : Hole(15, q, b, c, t) {}
 
 void Hole15::render(const mat4& vp) const {
-    // Fairway floor — flat path-stone (cement) surface
     { mat4 m = glm::translate(mat4(1), {H15_CX, 0.f, H15_MID_Z});
       m = glm::scale(m, {H15_FW, 1.f, H15_LEN});
       draw(*mQuad, m, vp, 3); }
@@ -26,34 +24,28 @@ void Hole15::render(const mat4& vp) const {
       m = glm::scale(m, {H15_FW - 0.2f, 1.f, 1.5f});
       draw(*mQuad, m, vp, 1); }
 
-    // East wall
     drawWall(vp, H15_XE + H15_WTH * 0.5f, H15_WH * 0.5f, H15_MID_Z,
              H15_WTH, H15_WH, H15_LEN + H15_WTH * 2.f);
 
-    // West wall
     drawWall(vp, H15_XW - H15_WTH * 0.5f, H15_WH * 0.5f, H15_MID_Z,
              H15_WTH, H15_WH, H15_LEN + H15_WTH * 2.f);
 
-    // North cap (tee end)
     drawWall(vp, H15_CX, H15_WH * 0.5f, H15_ZN - H15_WTH * 0.5f,
              H15_FW + H15_WTH * 2.f, H15_WH, H15_WTH);
 
-    // South cap (cup end)
     drawWall(vp, H15_CX, H15_WH * 0.5f, H15_ZS + H15_WTH * 0.5f,
              H15_FW + H15_WTH * 2.f, H15_WH, H15_WTH);
 
-    // Four columns (concrete-textured cylinders, taller than the walls)
     auto drawCol = [&](float cx, float cz) {
         mat4 m = glm::translate(mat4(1), {cx, 0.f, cz});
         m = glm::scale(m, {H15_COL_R * 2.f, H15_COL_H, H15_COL_R * 2.f});
-        draw(*mCylinder, m, vp, 8);  // concrete
+        draw(*mCylinder, m, vp, 8);
     };
     drawCol(H15_C1X, H15_C1Z);
     drawCol(H15_C2X, H15_C2Z);
     drawCol(H15_C3X, H15_C3Z);
     drawCol(H15_C4X, H15_C4Z);
 
-    // Cup
     drawCup(vp, H15_CX, H15_CUP_Z);
 }
 

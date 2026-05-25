@@ -9,7 +9,7 @@
 using glm::vec3;
 using glm::mat4;
 
-// Defined in main.cpp (not static so Hole translation units can call it)
+// defined in main.cpp
 void draw(const Mesh& m, const mat4& model, const mat4& vp, int surf);
 
 static const float BALL_R_CONST = 0.08f;

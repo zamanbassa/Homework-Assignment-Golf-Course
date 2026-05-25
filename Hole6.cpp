@@ -16,6 +16,11 @@ void Hole6::render(const mat4& vp) const {
     { mat4 m=glm::translate(mat4(1),{H6_CX,0,(zS+zJ)*0.5f}); m=glm::scale(m,{H6_S1_W,1,H6_S1_L}); draw(*mQuad,m,vp,0); }
     { mat4 m=glm::translate(mat4(1),{(xW+xE2)*0.5f,0,(zJ+zN)*0.5f}); m=glm::scale(m,{H6_S2_L,1,H6_S2_W}); draw(*mQuad,m,vp,0); }
     { mat4 m=glm::translate(mat4(1),{H6_CX,0.005f,zS-1.0f}); m=glm::scale(m,{H6_S1_W-0.2f,1,1.2f}); draw(*mQuad,m,vp,1); }
+    // Sand bunkers
+    { mat4 m=glm::translate(mat4(1),{H6_CX, 0.004f, (zS+zJ)*0.5f-0.5f});
+      m=glm::scale(m,{H6_S1_W-0.8f,1.f,1.8f}); draw(*mQuad,m,vp,4); }
+    { mat4 m=glm::translate(mat4(1),{(xW+xE2)*0.5f-1.0f, 0.004f, (zJ+zN)*0.5f});
+      m=glm::scale(m,{4.0f,1.f,H6_S2_W-0.8f}); draw(*mQuad,m,vp,4); }
     drawWall(vp, H6_CX,               WH*0.5f, zS+WTH*0.5f,       H6_S1_W+WTH*2,          WH, WTH);
     drawWall(vp, xW-WTH*0.5f,         WH*0.5f, (zS+zN)*0.5f,      WTH, WH, fabsf(zN-zS)+WTH*2);
     drawWall(vp, (xW+xE2)*0.5f,       WH*0.5f, zN-WTH*0.5f,       H6_S2_L+WTH*2,          WH, WTH);

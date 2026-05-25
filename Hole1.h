@@ -3,7 +3,7 @@
 
 #include "Hole.h"
 
-// ── Hole 1: straight fairway with water hazard + bridge ───────────────────────
+// Hole 1: straight fairway + bridge
 static const float H1_CX   = -33.0f;
 static const float H1_CZ   =  36.0f;
 static const float H1_FW   =   4.0f;

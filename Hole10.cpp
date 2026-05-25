@@ -4,13 +4,13 @@
 
 static const float PI10 = 3.14159265358979f;
 
-static const float H10_RMID   = (H10_RI + H10_RO) * 0.5f;  // 4.0
-static const float H10_TEE_X  = H10_CX + H10_RMID;          // 38.0
-static const float H10_TEE_Z  = H10_CZ;                      // -35.0
-static const float H10_CUP_X  = H10_CX;                      // 34.0
-static const float H10_CUP_Z  = H10_CZ - H10_RMID;          // -39.0
-static const float H10_BUMP_X = H10_CX - H10_RMID;          // 30.0
-static const float H10_BUMP_Z = H10_CZ;                      // -35.0
+static const float H10_RMID   = (H10_RI + H10_RO) * 0.5f;
+static const float H10_TEE_X  = H10_CX + H10_RMID;
+static const float H10_TEE_Z  = H10_CZ;
+static const float H10_CUP_X  = H10_CX;
+static const float H10_CUP_Z  = H10_CZ - H10_RMID;
+static const float H10_BUMP_X = H10_CX - H10_RMID;
+static const float H10_BUMP_Z = H10_CZ;
 
 static Mesh h10_makeArcFloor(float Ri, float Ro,
                               float tStart, float tEnd, int N = 48) {
@@ -80,43 +80,38 @@ Hole10::~Hole10() {
 }
 
 void Hole10::render(const mat4& vp) const {
-    const float chanW = H10_RO - H10_RI;  // 3.0
+    const float chanW = H10_RO - H10_RI;
 
-    // Arc floor
     { mat4 m = glm::translate(mat4(1), {H10_CX, 0.0f, H10_CZ});
       draw(mArcFloor, m, vp, 0); }
 
-    // Tee box (east opening)
+    // tee
     { mat4 m = glm::translate(mat4(1), {H10_TEE_X, 0.005f, H10_TEE_Z});
       m = glm::scale(m, {chanW - 0.2f, 1.f, 1.5f});
       draw(*mQuad, m, vp, 1); }
 
-    // Arc walls
     { mat4 m = glm::translate(mat4(1), {H10_CX, 0.0f, H10_CZ});
       draw(mArcWallIn,  m, vp, 21);
       draw(mArcWallOut, m, vp, 21); }
 
-    // End cap at angle=0 (tee end, east)
     drawWall(vp,
              H10_CX + H10_RMID,     H10_WH * 0.5f, H10_CZ,
              chanW + H10_WTH * 2.f, H10_WH,         H10_WTH);
 
-    // End cap at angle=3π/2 (cup end, south)
     drawWall(vp,
              H10_CX,                H10_WH * 0.5f, H10_CZ - H10_RMID,
              H10_WTH,               H10_WH,         chanW + H10_WTH * 2.f);
 
-    // Central rock pillar
+    // rock pillar
     { mat4 m = glm::translate(mat4(1), {H10_CX, 0.0f, H10_CZ});
       m = glm::scale(m, {H10_ROCK_R * 2.f, H10_WH * 1.8f, H10_ROCK_R * 2.f});
       draw(*mCylinder, m, vp, 10); }
 
-    // Channel bumper at west apex
+    // bumper
     { mat4 m = glm::translate(mat4(1), {H10_BUMP_X, 0.0f, H10_BUMP_Z});
       m = glm::scale(m, {H10_BUMP_R * 2.f, H10_WH, H10_BUMP_R * 2.f});
       draw(*mCylinder, m, vp, 10); }
 
-    // Cup
     drawCup(vp, H10_CUP_X, H10_CUP_Z);
 }
 
@@ -132,7 +127,6 @@ void Hole10::wallCollide(vec3& pos, vec3& vel) const {
     float d  = sqrtf(d2);
     float nx = dx / d, nz = dz / d;
 
-    // Outer radial wall (full circle)
     if (d > ro - BR) {
         pos.x = cx + nx * (ro - BR);
         pos.z = cz + nz * (ro - BR);
@@ -140,7 +134,6 @@ void Hole10::wallCollide(vec3& pos, vec3& vel) const {
         if (vdn > 0) { vel.x -= (1.f + r) * vdn * nx; vel.z -= (1.f + r) * vdn * nz; }
     }
 
-    // Inner radial wall — inactive in SE gap (dx>0 && dz<0)
     bool inGap = (dx > 0 && dz < 0);
     if (!inGap && d < ri + BR) {
         pos.x = cx + nx * (ri + BR);
@@ -149,19 +142,16 @@ void Hole10::wallCollide(vec3& pos, vec3& vel) const {
         if (vdn < 0) { vel.x -= (1.f + r) * vdn * nx; vel.z -= (1.f + r) * vdn * nz; }
     }
 
-    // East hard cap
     if (pos.x > cx + ro - BR) {
         pos.x = cx + ro - BR;
         if (vel.x > 0) vel.x = -fabsf(vel.x) * r;
     }
 
-    // South hard cap
     if (pos.z < cz - ro + BR) {
         pos.z = cz - ro + BR;
         if (vel.z < 0) vel.z = fabsf(vel.z) * r;
     }
 
-    // Channel bumper (west apex, cylindrical)
     {
         float dbx = pos.x - H10_BUMP_X, dbz = pos.z - H10_BUMP_Z;
         float db2 = dbx * dbx + dbz * dbz;
